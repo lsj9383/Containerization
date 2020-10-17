@@ -113,13 +113,79 @@ LABEL vendor=ACME\ Incorporated \
 
 ### CMD
 
+CMD 用于运行镜像容器化时，运行其中的进程。`docker run` 后的参数将会覆盖 CMD 命令的内容。
+
+- 对于后台服务场景，CMD 通常总会使用形式 `CMD ["executable", "param1", "param2"…]`。因此对于基于 Apache 服务的镜像，可以使用命令 `CMD ["apache2","-DFOREGROUND"]`。实际上这也是基于服务的镜像推荐的使用方式。
+- 在终端场景，CMD 需要给出交互式终端，例如 `CMD ["python"]`，使用这样的形式意味着在 docker run 时必须指定交互外壳 `docker run -it image-name`。
+- 在命令参数场景，CMD 中仅仅是命令参数，而命令由 ENTRYPOINT 指出。这样的形式方便通过 `docker run` 传递参数（因为会覆盖 CMD）。
+
 ### EXPOSE
+
+EXPOSE 用于指定镜像运行时会监听的端口，例如 Web 服务经常使用 `EXPOSE 80` 和 `EXPOSE 443`。
+
+为了容器外访问，`docker run` 时会指定端口映射。
 
 ### ENV
 
+ENV 可以设置镜像构建中和容器运行中的环境变量，通常有以下场景：
+
+- 设置软件运行的路径，简化 CMD 或 ENTRYPOINT 的命令（避免输入全路径，但实际上还是建议使用全路径）。
+  - 例如，对于 nginx 镜像，`ENV PATH=/usr/local/nginx/bin:$PATH`，运行命令仅需要 `CMD ["nginx"]`
+- ENV 也方便指定相关依赖或者应用本身所需要的环境变量。
+- ENV 也通常用于设置版本号信息。
+
+ENV 会给镜像添加一层，即便通过 RUN 的 unset 取消环境变量，但是实际上环境变量仍然存在。
+
 ### ADD & COPY
 
+COPY 仅支持上下文中的文件复制到镜像中，而 ADD 还能复制远程文件，以及将 tar 文件复制到镜像中后自动解压。
+
+所以，即便 ADD 和 COPY 很类似，但是我们通常选择 COPY，因为 COPY 的功能更简单，语义更直接。
+
+如果在 Dockerfile 的不同步骤中使用了不同的上下文文件，则可以考虑将 COPY 进行拆分，将稳定的文件排在前方，以便最大的利用构建缓存。但是这有个缺点，因为多个 COPY 会导致镜像层数增多，体积增大。在实际使用过程中应综合衡量 build 效率和镜像大小后作出决定。
+
+参考下述文件，因为依赖文件的变更会触发将所有的包进行检查和安装，因此依赖文件应该单独拎出来进行 COPY。若将 tmp 目录直接 COPY，会导致非依赖文件的变更都触发依赖包的检查和安装。
+
+```dockerfile
+COPY requirements.txt /tmp/
+RUN pip install --requirement /tmp/requirements.txt
+COPY . /tmp/
+```
+
+应该尽量避免通过 ADD 到远程获取解压包，因为这些解压包最后都会删掉，导致镜像中包含了 ADD 和 RUN 两层。更好的解决方法是在 RUN 中使用 wget 或 curl 命令获得文件，并在 RUN 层中删除。
+
+*错误：*
+
+```dockerfile
+ADD https://example.com/big.tar.xz /usr/src/things/
+RUN tar -xJf /usr/src/things/big.tar.xz -C /usr/src/things
+RUN make -C /usr/src/things all
+```
+
+*正确：*
+
+```dockerfile
+RUN mkdir -p /usr/src/things && \
+    curl -SL https://example.com/big.tar.xz | tar -xJC /usr/src/things && \
+    make -C /usr/src/things all
+```
+
 ### ENTRYPOINT
+
+该命令的最佳用法是用于设置主进程运行命令，使得该镜像想命令一样运行，并可以通过 CMD 传递参数。如果没有指定 ENTRYPOINT，则是将 CMD 作为进程启动命令。
+
+```dockerfile
+ENTRYPOINT ["s3cmd"]
+CMD ["--help"]
+```
+
+可以直接运行镜像。
+
+```sh
+docker run s3cmd
+
+docker run s3cmd ls s3://mybucket
+```
 
 ### VOLUME
 
