@@ -1,5 +1,39 @@
 # Dockerfile 最佳实践
 
+<!-- TOC -->
+
+- [Dockerfile 最佳实践](#dockerfile-最佳实践)
+    - [概览](#概览)
+    - [创建短暂的容器](#创建短暂的容器)
+    - [构建上下文](#构建上下文)
+    - [通过 stdin 输入 Dockerfile 的场景](#通过-stdin-输入-dockerfile-的场景)
+    - [.dockerignore](#dockerignore)
+    - [多阶段构建](#多阶段构建)
+    - [仅安装需要的依赖](#仅安装需要的依赖)
+    - [解耦应用](#解耦应用)
+    - [镜像层数最小化](#镜像层数最小化)
+    - [整理多行参数](#整理多行参数)
+    - [利用构建缓存](#利用构建缓存)
+    - [Docker 指令](#docker-指令)
+        - [FROM](#from)
+        - [LABEL](#label)
+        - [RUN](#run)
+        - [CMD](#cmd)
+        - [EXPOSE](#expose)
+        - [ENV](#env)
+        - [ADD & COPY](#add--copy)
+        - [ENTRYPOINT](#entrypoint)
+        - [VOLUME](#volume)
+        - [USER](#user)
+        - [WORKDIR](#workdir)
+        - [ONBUILD](#onbuild)
+        - [STOPSIGNAL](#stopsignal)
+    - [参考文献](#参考文献)
+
+<!-- /TOC -->
+
+## 概览
+
 一个 Docker 镜像由 readonly layers 组成，每一个指令都将会生成一个 readonly layers，相邻的两层之间是增量的关系。
 
 当你运行一个镜像，生成一个容器时，会在顶部生成一个可写层，容器中的所有 IO 变更都是对可写层的操作。
@@ -56,6 +90,17 @@ CMD ["--help"]
 为了减少复杂性，简化依赖，镜像大小，构建时间，仅安装需要的依赖。绝对不能因为仅仅可能使用，而将不必要的依赖进行安装。
 
 ## 解耦应用
+
+一个容器应该只有一个关注点，这类似于面向对象里面的单一职责，这便于进行水平扩容和重复使用。例如，一个 Web 应用可以进行拆分为如下三个功能的容器（当然，这些容器各自都有对应的镜像）：
+
+- Web 应用进程用一个容器。
+- Nginx 接入层的容器。
+- MySQL 存储层的容器。
+
+每个容器限制为一个进程是一个较好的经验法则，但是并不是强制和一成不变的，例如：
+
+- Nginx 的 master-worker 多进程工作的方式。
+- 某些镜像在容器化时会启动一个初始进程，该进程可以辅助生成实际的工作进程。
 
 ## 镜像层数最小化
 
@@ -275,6 +320,43 @@ docker run s3cmd
 docker run s3cmd ls s3://mybucket
 ```
 
+实际上，大多数著名的应用 Dockerfile 中，ENTRYPOINT 通常会和辅助脚本一起使用，并且辅助脚本名字统一为 `docker-entrypoint.sh`。
+
+辅助脚本在处理完毕后，最后通常使用 `exec "$@"` 或 `bin-name "$@"`，将启动真正工作进程（`$@` 得到辅助脚本的所有输入参数），并且工作进程的 PID 将为 1。
+
+下面这是 Redis 的 `docker-entrypoint.sh`。
+
+```sh
+#!/bin/sh
+set -e
+
+# first arg is `-f` or `--some-option`
+# or first arg is `something.conf`
+if [ "${1#-}" != "$1" ] || [ "${1%.conf}" != "$1" ]; then
+  set -- redis-server "$@"
+fi
+
+# allow the container to be started with `--user`
+if [ "$1" = 'redis-server' -a "$(id -u)" = '0' ]; then
+  find . \! -user redis -exec chown redis '{}' +
+  exec gosu redis "$0" "$@"
+fi
+
+exec "$@"
+```
+
+Redis 的 Dockerfile 的最后：
+
+```dockerfile
+# ...
+
+COPY docker-entrypoint.sh /usr/local/bin/
+ENTRYPOINT ["docker-entrypoint.sh"]
+
+EXPOSE 6379
+CMD ["redis-server"]
+```
+
 ### VOLUME
 
 VOLUME 用于暴露数据存储区，强烈建议使用 VOLUME 而不是直接 mounts，因为使用 VOLUME 方便进行查阅信息，而 mounts 无法查询使用信息。
@@ -294,3 +376,13 @@ USER 命令可以设置工作的用户。如果应用不需要 root 特权，则
 避免使用  `RUN cd…&& do-something` 这样的命令，因为这难以阅读和排查问题。
 
 ### ONBUILD
+
+### STOPSIGNAL
+
+在 `docker stop` 停止容器时，向容器中的进程 PID 为 1 的发送的停止信号，STOPSITNAL 则是指定停止信号是什么。如果十秒后，进程仍未关闭，docker 会发送 SIGKILL 进行强制关闭。
+
+默认使用的是 SIGTERM(15)，通常为了强调，我们在 Dockerfile 中也会写明 `STOPSIGNAL SIGTERM`，因为 SIGTERM 通常用于优雅的关闭进程。
+
+## 参考文献
+
+- [Best practices for writing Dockerfiles](https://docs.docker.com/develop/develop-images/dockerfile_best-practices/#entrypoint)
