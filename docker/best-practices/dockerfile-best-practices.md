@@ -111,6 +111,94 @@ LABEL vendor=ACME\ Incorporated \
 
 ### RUN
 
+将长并复杂的 RUN 语句进行拆分，通过 `\` 将多条语句分割为多行，让 Dockerfile 更易读、理解和维护。
+
+在写多行命令时，可以使用 `&&` 进行连接，也可以使用 `;` 进行连接，如果使用 `&&` 连接，通常将其放在行首。使用 `;` 连接，则放在行尾。
+
+- Redis Dockerfile
+
+  ```dockerfile
+  RUN set -eux; \
+      savedAptMark="$(apt-mark showmanual)"; \
+      apt-get update; \
+      ...
+  ```
+
+- Nginx Dockerfile
+
+  ```dockerfile
+  RUN set -x \
+      && addgroup --system --gid 101 nginx \
+      && ...
+  ```
+
+**APT-GET**
+
+在 RUN 中最常用的命令可能是 `apt-get` 因为该命令用于安装软件，该命令在 Dockerfile 的使用中存在一些需要避免的陷阱。
+
+- 避免使用 `apt-get upgrade` 和 `dist-upgrade`，该命令用于更新过期的软件。在一些父镜像中，某些软件不应该被更新，有些甚至也没有权限更新。如果发现了软件过期，更好的做法是告知镜像作者。
+- `apt-get update`（仅更新本地的软件版本列表，不会主动去更新软件） 和 `apt-get install` 应该在同一个 RUN 中使用，避免拆为多行，因为这可能导致后期添加新的安装软件时，由于镜像缓存的缘故，导致 `apt-get update` 没有执行，进而安装了过期版本的软件。
+
+  ```dockerfile
+  FROM ubuntu:18.04
+  RUN apt-get update
+  RUN apt-get install -y curl
+  ```
+
+- 考虑在安装时指定软件版本号。
+- 安装完成后，清理 apt 缓存，缩小镜像，`rm -rf /var/lib/apt/lists/*`。如果使用 `Debian` 和 `Ubuntu` 的官方镜像，会自动清理 apt 缓存。
+
+这是一个完整的 apt-get 示例：
+
+```dockerfile
+RUN apt-get update && apt-get install -y \
+    aufs-tools \
+    automake \
+    build-essential \
+    curl \
+    dpkg-sig \
+    libcap-dev \
+    libsqlite3-dev \
+    mercurial \
+    reprepro \
+    ruby1.9.1 \
+    ruby1.9.1-dev \
+    s3cmd=1.1.* \
+ && rm -rf /var/lib/apt/lists/*
+```
+
+**USING PIPES**
+
+有些命令会使用管道，但是如果管道的前一个指令失败，后一个指令仍然会继续执行，例如：
+
+```dockerfile
+RUN wget -O - https://some.site | wc -l > /number
+```
+
+如果请求 `https://some.site` 失败，并不会影响 `wc -l` 的影响， 最终也会顺利生成镜像， 然而这个镜像是错误的。
+
+为了避免管道前的命令失败，导致错误镜像的生成，可以使用 `set -o` 进行阻止，例如：
+
+```dockerfile
+RUN set -o pipefail && wget -O - https://some.site | wc -l > /number
+```
+
+虽然官网说用 `set -o`，但是看很多 Dockerfile 都会使用 `set -e` 进行阻止，该选项在命令失败时会直接关闭 shell。
+
+**SET**
+
+看了一些 Dockerfile 后，在 RUN 前往往会执行 set 指令，用于设置 shell 的运行方式，常见的有：
+
+- `RUN set -x`
+- `RUN set -ex`
+- `RUN set -eux`
+
+这些 set 参数作用：
+
+- `-x`, 执行指令后，会先显示该指令及所下的参数。
+- `-e`, 若指令传回值不等于0，则立即退出shell。很明显，通常使用这个时一般都有管道命令，这可以及时停止生成镜像。
+- `-u`, 当执行时使用到未定义过的变量，则显示错误信息。
+
 ### CMD
 
 CMD 用于运行镜像容器化时，运行其中的进程。`docker run` 后的参数将会覆盖 CMD 命令的内容。
