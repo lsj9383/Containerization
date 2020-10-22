@@ -28,6 +28,7 @@
         - [WORKDIR](#workdir)
         - [ONBUILD](#onbuild)
         - [STOPSIGNAL](#stopsignal)
+        - [VOLUME](#volume-1)
     - [参考文献](#参考文献)
 
 <!-- /TOC -->
@@ -382,6 +383,22 @@ USER 命令可以设置工作的用户。如果应用不需要 root 特权，则
 在 `docker stop` 停止容器时，向容器中的进程 PID 为 1 的发送的停止信号，STOPSITNAL 则是指定停止信号是什么。如果十秒后，进程仍未关闭，docker 会发送 SIGKILL 进行强制关闭。
 
 默认使用的是 SIGTERM(15)，通常为了强调，我们在 Dockerfile 中也会写明 `STOPSIGNAL SIGTERM`，因为 SIGTERM 通常用于优雅的关闭进程。
+
+### VOLUME
+
+容器中应避免对存储层进行写操作，如果存在写操作，需要对其目录声明为 VOLUME。
+
+```dockerfile
+VOLUME /data
+```
+
+VOLUME 声明容器中需要进行挂载的卷，并且在 docker run 时，若没有认为指定和宿主机的挂载映射关系，则会自动在宿主机挂载为匿名卷。
+
+当然，运行时可以覆盖这个匿名挂载设置。
+
+```sh
+docker run -d -v mydata:/data xxxx
+```
 
 ## 参考文献
 
