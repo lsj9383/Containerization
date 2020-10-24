@@ -123,12 +123,39 @@ CMD command param1 param2
 
 CMD 提供的默认值可以包含一个可执行文件，也可以不包含（此时 ENTRYPOINT 提供可执行文件）。
 
-shell 模式和 exec 模式最大的区别在于 exec 模式不是 shell 命令后，无法进行变量替换。
+shell 模式和 exec 模式最大的区别在于 exec 模式不是 shell 通过 shell 执行，无法进行变量替换。
 
 **注意：**
 
 - 因为 CMD 是容器启动执行的命令，而 ARG 参数只是镜像构建使用，因此无法将 ARG 作为 CMD 的一部分（ENV 可以，因为环境变量在容器启动时存在）。
 - 如果又想使用 exec form，又想使用 shell 变量替换，则可以使用 `CMD ["/bin/sh", "-c", "echo $HOME"]`。
+
+如果希望通过 --build-arg 来控制 CMD 的效果，则可以结合 ARG 和 ENV 使用，例如：
+
+```dockerfile
+FROM busybox
+
+ARG EXE
+ENV EXE=$EXE
+
+CMD $EXE
+```
+
+通过 ARG 获取传入的参数，再用该参数设置环境变量，CMD 的 shell 模式可以读取环境变量的值。
+
+可以看出，CMD 的 shell 模式，使用的是 `/bin/sh -c CMD` 的方式运行命令，但是为什么 top 时看不懂 /bin/sh 进程呢？
+
+```sh
+$ docker run -it --rm test /bin/sh -c top
+
+Mem: 7522704K used, 211060K free, 3680K shrd, 224012K buff, 2814340K cached
+CPU:  4.8% usr  2.4% sys  0.0% nic 92.6% idle  0.0% io  0.0% irq  0.0% sirq
+Load average: 0.04 0.05 0.05 2/869 5
+  PID  PPID USER     STAT   VSZ %VSZ CPU %CPU COMMAND
+    1     0 root     R     1304  0.0   3  0.0 top
+```
+
+这是因为 `/bin/sh -c` 实际上会执行 exec $0，这样就能用输入参数作为新进程替换掉 shell 进程。
 
 ## ENTRYPOINT
 
@@ -291,6 +318,49 @@ RUN groupadd -r usergroup && useradd --no-log-init -r -g usergroup -m user00
 
 ## ARG
 
+```dockerfile
+ARG <name>[=<default value>]
+```
+
+ARG 指令定义了 Dockerfile 变量，可以通过多个 ARG 指令定义多个变量，并且支持在构建是通过 `docker run --build-arg <varname>=<value>` 传入变量，例如：
+
+```sh
+docker build -t test --build-arg firsht=hello --build-arg b=world .
+```
+
+**注意：**
+
+- 不建议通过 ARG 的方式使用或传入机密信息，因为在 RUN 中使用时会记录，并通过 `docker history image-name` 可以查出其值。
+
+ARG 命令支持默认值，build 时若为传入新值，则使用默认值：
+
+```dockerfile
+FROM busybox
+ARG user1=someuser
+ARG buildno=1
+```
+
+ARG 的作用域位于在当前 stage 进行声明后，如果要在多个 stage 使用同一个 ARG，则需要在每个 stage 中进行声明：
+
+```dockerfile
+FROM busybox
+ARG SETTINGS
+RUN ./run/setup $SETTINGS
+
+FROM busybox
+ARG SETTINGS
+RUN ./run/other $SETTINGS
+```
+
+若当 ENV 中定义了同名变量，则在使用时，ENV 的会覆盖 ARG 的值，但可以通过 ARG，以便在 build 时决定 ENV 的值：
+
+```dockerfile
+FROM ubuntu
+ARG CONT_IMG_VER
+ENV CONT_IMG_VER=${CONT_IMG_VER:-v1.0.0}
+RUN echo $CONT_IMG_VER
+```
+
 ## STOPSIGNAL
 
 ```sh
@@ -300,6 +370,155 @@ STOPSIGNAL signal
 STOPSIGNAL 指令设置在容器停止时，将被发送个容器 1 号进程的停止信号。signal 可以使用数字，也可以使用信号名称。
 
 ## HEALTHCHECK
+
+HEALTHCHECK 命令告诉 Docker 如何去判断容器仍然在工作。一个 Dockerfile 只能有一个 HEALTHCHECK 命令，如果存在多个，则最后一个有效。
+
+HEALTHCHECK 有两种形式的指令：
+
+```dockerfile
+# 通过运行该命令检查容器的健康
+HEALTHCHECK [OPTIONS] CMD command
+
+# 不继承 base image 的健康检查
+HEALTHCHECK NONE
+```
+
+只要健康检查的命令通过，容器状态为 `health`，若健康检查数次未通过，则将容器状态设置为 `unhealth`。
+
+在 CMD 前的 OPTIONS：
+
+OPTIONS | Default | Description
+-|-|-
+--interval=DURATION | 30s | 每次以该间隔运行健康检查命令。容器启动后，会在 interval 时间后进行手册检测。
+--timeout=DURATION | 30s | 单次健康检查如果超过该时间则认为失败。
+--start-period=DURATION | 0s | 容器主进程启动准备相关工作所需要的时间。在此时间内，健康检查仍然运行，但是不计重试次数。如果此时间内，健康检查判断正常，则后失败重试技数量会开启。
+--retries=N | 3 | 需要重试健康检查 N 次，若都失败，才将容器状态置为 `unhealth`。
+
+在 CMD 后的 command 可以是：
+
+- 一个 shell 命令后
+- 一个 exec 的数组
+
+命令后的返回码（exit code）暗示着容器的健康状态：
+
+- 0，容器健康。
+- 1，容器不健康。
+- 2，保留，未使用。
+
+例如，判断一个 web-server 是否有效的方式：
+
+```dockerfile
+HEALTHCHECK --interval=5m --timeout=3s \
+  CMD curl -f http://localhost/ || exit 1
+```
+
+上述检查每 5 分钟执行一次，并且每次请求超时时间为 3 秒。
+
+健康检查的命令执行后，标准输出和错误输出都可以通过 `docker inspect` 命令进行查看，以便于进行调试。此类输出应该保持简介，目前仅支持 4096 字节的输出保存。
+
+```sh
+$ docker inspect modest_raman
+
+[
+    {
+        "Id": "78f1ec8510251893f83ac3b2cd6bfbe8306a74324a7ce666149c9db1e824c0e3",
+        "Created": "2020-10-24T05:37:04.875978865Z",
+        "Path": "/bin/sh",
+        "Args": [],
+        "State": {
+            "Status": "running",
+            "Running": true,
+            "Paused": false,
+            "Restarting": false,
+            "OOMKilled": false,
+            "Dead": false,
+            "Pid": 7999,
+            "ExitCode": 0,
+            "Error": "",
+            "StartedAt": "2020-10-24T05:37:05.135916611Z",
+            "FinishedAt": "0001-01-01T00:00:00Z",
+            "Health": {
+                "Status": "unhealthy",
+                "FailingStreak": 15,
+                "Log": [
+                    {
+                        "Start": "2020-10-24T13:42:35.915991301+08:00",
+                        "End": "2020-10-24T13:42:35.990529245+08:00",
+                        "ExitCode": 1,
+                        "Output": "cat: can't open 'hello': No such file or directory\n"
+                    },
+                    {
+                        "Start": "2020-10-24T13:43:05.994944345+08:00",
+                        "End": "2020-10-24T13:43:06.064784941+08:00",
+                        "ExitCode": 1,
+                        "Output": "cat: can't open 'hello': No such file or directory\n"
+                    },
+                    {
+                        "Start": "2020-10-24T13:43:36.069922043+08:00",
+                        "End": "2020-10-24T13:43:36.140329347+08:00",
+                        "ExitCode": 1,
+                        "Output": "cat: can't open 'hello': No such file or directory\n"
+                    },
+                    {
+                        "Start": "2020-10-24T13:44:06.144854963+08:00",
+                        "End": "2020-10-24T13:44:06.214893192+08:00",
+                        "ExitCode": 1,
+                        "Output": "cat: can't open 'hello': No such file or directory\n"
+                    },
+                    {
+                        "Start": "2020-10-24T13:44:36.219341738+08:00",
+                        "End": "2020-10-24T13:44:36.290616971+08:00",
+                        "ExitCode": 1,
+                        "Output": "cat: can't open 'hello': No such file or directory\n"
+                    }
+                ]
+            }
+        },
+        ...
+        "Config": {
+            "Hostname": "78f1ec851025",
+            "Domainname": "",
+            "User": "",
+            "AttachStdin": true,
+            "AttachStdout": true,
+            "AttachStderr": true,
+            "Tty": true,
+            "OpenStdin": true,
+            "StdinOnce": true,
+            "Env": [
+                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+            ],
+            "Cmd": [
+                "/bin/sh"
+            ],
+            "Healthcheck": {
+                "Test": [
+                    "CMD",
+                    "cat",
+                    "hello"
+                ]
+            },
+            "Image": "test",
+            "Volumes": null,
+            "WorkingDir": "",
+            "Entrypoint": null,
+            "OnBuild": null,
+            "Labels": {}
+        },
+        ...
+    }
+]
+```
+
+只有开启了 HEALTHCHECK 检查的容器，才会在 STATUS 显示 unhealthy 或者 healthy
+
+```sh
+$ docker ps
+CONTAINER ID        IMAGE               COMMAND                  CREATED             STATUS                     PORTS                    NAMES
+78f1ec851025        test                "/bin/sh"                3 minutes ago       Up 3 minutes (unhealthy)                            modest_raman
+78f1ec851025        test                "/bin/sh"                3 minutes ago       Up 3 minutes (healthy)                              falks
+0132d8112077        server-image        "python entry.py"        2 weeks ago         Up 2 weeks                 0.0.0.0:5006->5006/tcp   webapp
+```
 
 ## SHELL
 
