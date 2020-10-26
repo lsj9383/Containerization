@@ -124,6 +124,20 @@ docker search --filter=stars=3 --no-trunc busybox
 
 ## Docker PS
 
+容器的 STATUS 包括：
+
+- created，创建了容器但是并未启动。
+  - `docker create` 的方式可以创建容器但不进行启动。
+  - 容器创建后但是没有启动成功，例如无法 CMD 和 ENTRYPOINT 启动容器失败。（如果是 CMD shell 的方式，因为会先启动 shell 所以容器可以正常启动，即便失败，不会为 created 状态）。
+- restarting，容器正在进行重启的状态。
+- running，容器正常。
+- removing，容器正在删除的状态。
+- paused，容器暂停。
+- exited，容器运行完成后退出的状态。
+- dead，容器被删除，但是仅部分删除成功。
+
+docker ps 可以通过 `--filter status=running` 的方式过滤出期望的状态。
+
 ## Docker Top
 
 ## Docker Build
@@ -176,6 +190,22 @@ OPTIONS | Default | Description
 ## Docker Logs
 
 ## Docker Login
+
+登录 Registry 服务器：
+
+```sh
+docker login [OPTIONS] [SERVER]
+```
+
+默认情况下 `docker login` 会用交互的方式来进行登录，但也可以通过 STDIN 提供登录密钥（使用STDIN可以防止密码出现在Shell的历史记录或日志文件中）：
+
+```sh
+cat ~/my_password.txt | docker login --username foo --password-stdin
+```
+
+docker login 登录成功后，会在 `$HOME/.docker/config.json` 生成对应服务的登录密钥信息，后续到对应 registry 的请求将会直接使用该密钥。
+
+docker logout 退出后，会清理 `$HOME/.docker/config.json` 对应 registry 的密钥信息。
 
 ## Docker logout
 
