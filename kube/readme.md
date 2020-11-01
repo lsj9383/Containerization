@@ -23,3 +23,18 @@ kubeadm join 9.134.9.104:6443 --token 51gfwp.2kmsf2fgfz57rr63 \
 ```sh
 kubectl taint nodes --all node-role.kubernetes.io/master-
 ```
+
+### 速记
+
+```sh
+# 资源列表
+kubectl get ${resource} -n ${namespace} -l ${label}
+kubectl get pods
+kubectl get pods -n kube-system
+kubectl get pods -l app=hello
+kubectl get pods --output=yaml
+
+# 资源详情
+kubectl describe ${resource} ${resource-name} -n ${namespace}
+kubectl describe pod hello-pod
+```
