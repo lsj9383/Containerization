@@ -23,3 +23,10 @@ kubeadm join 9.134.9.104:6443 --token 51gfwp.2kmsf2fgfz57rr63 \
 ```sh
 kubectl taint nodes --all node-role.kubernetes.io/master-
 ```
+
+### 速记
+
+```sh
+# 可以直接显示 label
+get pods --show-labels
+```
