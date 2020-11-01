@@ -26,15 +26,24 @@ kubectl taint nodes --all node-role.kubernetes.io/master-
 
 ### 速记
 
+资源列表
+
 ```sh
-# 资源列表
 kubectl get ${resource} -n ${namespace} -l ${label}
 kubectl get pods
 kubectl get pods -n kube-system
 kubectl get pods -l app=hello
+
+# 以 yaml 方式显示资源
 kubectl get pods --output=yaml
 
-# 资源详情
+# 获取资源时，显示资源的 label
+kubectl get pods --show-labels
+```
+
+资源详情
+
+```sh
 kubectl describe ${resource} ${resource-name} -n ${namespace}
 kubectl describe pod hello-pod
 ```
