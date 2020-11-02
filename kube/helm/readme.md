@@ -41,6 +41,12 @@ stable/ark                              4.2.2           0.10.2                  
 ...
 ```
 
+仅下载但不安装
+
+```sh
+$ helm pull stable/redis
+```
+
 安装本地 Chart
 
 ```sh
