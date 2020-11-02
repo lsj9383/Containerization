@@ -123,3 +123,156 @@ my-service            ClusterIP   10.108.98.98     <none>        8888/TCP       
 ## DNS
 
 ## 使用 Service 连接到应用
+
+要通过网络暴露应用，需要先创建 Pod：
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-nginx
+spec:
+  selector:
+    matchLabels:
+      run: my-nginx
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        run: my-nginx
+    spec:
+      containers:
+      - name: my-nginx
+        image: nginx
+        ports:
+        - containerPort: 80
+```
+
+**注意：**
+
+- `.spec.template.spec.ports.containerPort` 只是用来声明 Pods 会使用哪些端口，即便不声明也不影响请求。
+
+通过 `kubectl describe` 和 `kubectl get pods` 都将可以获得 Pod IP。
+
+```sh
+$ kubectl get pods -l run=my-nginx -o yaml | grep " podIP:"
+    podIP: 10.244.0.230
+    podIP: 10.244.0.231
+
+$ kubectl describe pods my-nginx-5b56ccd65f-8hs4w
+...
+IP:           10.244.0.230
+IPs:
+  IP:           10.244.0.230
+...
+```
+
+可以直接给这些 Pods 发起请求：
+
+```sh
+# 因为我机器上有代理，会进行限制，所以 curl 时强制不使用代理
+
+$ curl "http://10.244.0.230" --noproxy "*"
+$ curl "http://10.244.0.231" --noproxy "*"
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+    body {
+        width: 35em;
+        margin: 0 auto;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+    }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+```
+
+为了解决 Pods 自动创建、销毁时的 IP 问题，需要通过 Service 进行管理。有两种方式：
+
+- 使用 Service 的 yaml 文件。
+- 直接使用 `kubectl expose`，该方法简单方便，但是不够灵活。`kubectl expose deployment/my-nginx`，等价于下述 yaml 文件：
+
+    ```yaml
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: my-nginx
+      labels:
+        run: my-nginx
+    spec:
+      ports:
+      - port: 80
+        protocol: TCP
+      selector:
+        run: my-nginx
+    ```
+
+```sh
+$ kubectl get svc
+NAME         TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)   AGE
+my-nginx     ClusterIP   10.102.218.2   <none>        80/TCP    3s
+```
+
+每个 Service 都是通过 Endpoint 对象连接到 Pods 的，且 Endpoint 的名称和 Service 一致：
+
+```sh
+$ kubectl get ep
+NAME         ENDPOINTS                         AGE
+my-nginx     10.244.0.230:80,10.244.0.231:80   56s
+```
+
+在集群中的任何节点、任何 Pods，都能通过 ClusterIP 和 ClusterPort 进行访问：
+
+```sh
+curl "http://10.102.218.2" --noproxy "*"
+```
+
+现在进入集群 Pods 中进行测试：
+
+```sh
+# 启动有 curl 命令的 Pods，这是一个静态 Pods
+$ kubectl run curl-test --image=radial/busyboxplus:curl -i --tty
+
+# 查看环境变量
+$ env
+MY_NGINX_SERVICE_PORT=80
+MY_NGINX_PORT=tcp://10.102.218.2:80
+MY_NGINX_PORT_80_TCP_ADDR=10.102.218.2
+MY_NGINX_PORT_80_TCP_PORT=80
+MY_NGINX_PORT_80_TCP_PROTO=tcp
+...
+
+# 查看 DNS
+$ nslookup my-nginx
+Server:    10.96.0.10
+Address 1: 10.96.0.10 kube-dns.kube-system.svc.cluster.local
+
+Name:      my-nginx
+Address 1: 10.102.218.2 my-nginx.default.svc.cluster.local
+
+# curl
+curl "http://my-nginx.default.svc.cluster.local"
+```
+
+**注意：**
+
+- 只有在 Pods 中才能解析 Service 域名，因为 Pods 的 DNS Resolver 是交给 kube-dns 服务来专门进行管理的。
+- 宿主机节点上不能使用 Service 域名来获取 Cluster IP，因为宿主机节点的 DNS Resolver 不是 kube-dns。
+
+对于 Service 的暴露，可以使用 NodePort 和 LoadBalancer。
+
+## Ingress
