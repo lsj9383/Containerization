@@ -35,6 +35,9 @@ kubectl get pods -n kube-system
 kubectl get pods -l app=hello
 
 # 以 yaml 方式显示资源
+kubectl get ${resource} ${resource-name} --output=yaml
+
+# 显示所有的 Pods 资源的 yaml
 kubectl get pods --output=yaml
 
 # 获取资源时，显示资源的 label
