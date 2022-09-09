@@ -3,6 +3,8 @@
         "apiserver",
         "containerd",
         "kubeadm",
-        "kubelet"
+        "kubelet",
+        "myapp",
+        "uids"
     ]
 }
