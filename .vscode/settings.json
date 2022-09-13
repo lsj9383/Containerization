@@ -1,14 +1,17 @@
 {
     "cSpell.words": [
         "apiserver",
+        "cgroups",
         "containerd",
         "dockercfg",
         "dockerconfigjson",
         "imagename",
         "kubeadm",
         "kubelet",
+        "libc",
         "myapp",
         "mycontainer",
+        "POSIX",
         "uids"
     ]
 }
