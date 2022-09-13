@@ -2,6 +2,8 @@
 
 ## 概述
 
+[Kubernetes 文档](https://kubernetes.io/zh-cn/docs/home/)
+
 ## 安装
 
 ```sh

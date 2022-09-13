@@ -2,9 +2,11 @@
     "cSpell.words": [
         "apiserver",
         "containerd",
+        "imagename",
         "kubeadm",
         "kubelet",
         "myapp",
+        "mycontainer",
         "uids"
     ]
 }
