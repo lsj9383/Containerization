@@ -9,9 +9,13 @@
         "kubeadm",
         "kubelet",
         "libc",
+        "myannotation",
         "myapp",
         "mycontainer",
+        "mylabel",
+        "nslookup",
         "POSIX",
+        "printenv",
         "uids"
     ]
 }
