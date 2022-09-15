@@ -5,7 +5,11 @@
         "containerd",
         "dockercfg",
         "dockerconfigjson",
+        "fluentd",
+        "hysrc",
         "imagename",
+        "jbqqo",
+        "khku",
         "kubeadm",
         "kubelet",
         "libc",
@@ -13,9 +17,12 @@
         "myapp",
         "mycontainer",
         "mylabel",
+        "nacti",
         "nslookup",
         "POSIX",
         "printenv",
-        "uids"
+        "uids",
+        "vcmts",
+        "wtsmm"
     ]
 }
