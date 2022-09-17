@@ -8,6 +8,7 @@
         "drawio",
         "ENXXZWWSAPRCR",
         "fluentd",
+        "glusterfs",
         "hysrc",
         "imagename",
         "ipvs",
@@ -26,7 +27,10 @@
         "pkts",
         "POSIX",
         "printenv",
+        "Rados",
+        "rshared",
         "SVCNAME",
+        "tmpfs",
         "uids",
         "vcmts",
         "wtsmm"
