@@ -400,6 +400,44 @@ spec:
 - 此示例中的 subPath 配置不建议在生产环境中使用。
 - 更合理的方式我认为应该是根据其用途区分为不同的存储卷。
 
+#### 带有环境变量的 subPath
+
+使用 subPathExpr 字段可以基于 downward API 环境变量来构造 subPath 目录名。**subPath 和 subPathExpr 属性是互斥的**。
+
+在这个示例中：
+
+- Pod 使用 subPathExpr 来 hostPath 卷 `/var/log/pods` 中创建目录 pod1
+- hostPath 卷采用来自 downwardAPI 的 Pod 名称生成目录名
+- 宿主目录 `/var/log/pods/pod1` 被挂载到容器的 /logs 中。
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod1
+spec:
+  containers:
+  - name: container1
+    env:
+    - name: POD_NAME
+      valueFrom:
+        fieldRef:
+          apiVersion: v1
+          fieldPath: metadata.name
+    image: busybox:1.28
+    command: [ "sh", "-c", "while [ true ]; do echo 'Hello'; sleep 10; done | tee -a /logs/hello.txt" ]
+    volumeMounts:
+    - name: workdir1
+      mountPath: /logs
+      # 包裹变量名的是小括号，而不是大括号
+      subPathExpr: $(POD_NAME)
+  restartPolicy: Never
+  volumes:
+  - name: workdir1
+    hostPath:
+      path: /var/log/pods
+```
+
 ## 资源
 
 emptyDir 卷的存储介质（例如磁盘、SSD 等）是由保存 kubelet 数据的根目录（通常是 /var/lib/kubelet）的文件系统的介质确定。
@@ -410,7 +448,40 @@ Kubernetes 对 emptyDir 卷或者 hostPath 卷可以消耗的空间没有限制�
 
 ## 树外（Out-of-Tree）卷插件
 
+Out-of-Tree 卷插件包括：
+
+- 容器存储接口（CSI）
+- FlexVolume（已弃用）
+
+它们使存储供应商能够创建自定义存储插件，而无需将插件源码添加到 Kubernetes 代码仓库。
+
+以前，所有卷插件（如上面列出的卷类型）都是“树内（In-Tree）”的：
+
+- “树内” 插件是与 Kubernetes 的核心组件一同构建、链接、编译和交付的。 这意味着向 Kubernetes 添加新的存储系统（卷插件）需要将代码合并到 Kubernetes 核心代码库中。
+- “树外” 插件，即开发商根据接口来开发自定义存储插件，变更 kubernetes 核心组件。
+
+CSI 和 FlexVolume 都允许独立于 Kubernetes 代码库开发卷插件，并作为扩展部署（安装）在 Kubernetes 集群上。
+
+对于希望创建树外（Out-Of-Tree）卷插件的存储供应商，请参考[卷插件常见问题](https://github.com/kubernetes/community/blob/master/sig-storage/volume-plugin-faq.md)。
+
 ### csi
+
+[容器存储接口 (CSI)](https://github.com/container-storage-interface/spec/blob/master/spec.md) 为容器编排系统（如 Kubernetes）定义标准接口，以将任意存储系统暴露给它们的容器工作负载。
+
+更多详情请阅读 [CSI 设计方案](https://github.com/kubernetes/design-proposals-archive/blob/main/storage/container-storage-interface.md)。
+
+**注意：**
+
+- Kubernetes v1.13 废弃了对 CSI 规范版本 0.2 和 0.3 的支持，并将在以后的版本中删除。
+- CSI 驱动可能并非兼容所有的 Kubernetes 版本。 请查看特定 CSI 驱动的文档，以了解各个 Kubernetes 版本所支持的部署步骤以及兼容性列表。
+
+一旦在 Kubernetes 集群上部署了 CSI 兼容卷驱动程序，用户就可以使用 csi 卷类型来挂接、挂载 CSI 驱动所提供的卷。
+
+csi 卷可以在 Pod 中以三种方式使用：
+
+- 通过 PersistentVolumeClaim(#persistentvolumeclaim) 对象引用
+- 使用一般性的临时卷
+- 使用 CSI 临时卷， 前提是驱动支持这种用法
 
 ## 挂载卷的传播
 
