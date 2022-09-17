@@ -84,10 +84,9 @@ metadata:
     run: my-nginx
 spec:
   ports:
-    - port: 80
+    - port: 80              # Service 将公开的端口
       protocol: TCP
-      # targetPort 是转发的目标端口，不设置就用
-      # targetPort: 80
+      targetPort: 80        # targetPort 是转发的目标端口（Pod 的端口，即 Pod spec 中的 containerPort），如果未指定字段，则使用 "port” 字段的值（直接映射）
   selector:
     run: my-nginx
   # 不设置 ClusterIP 就会随机选择
@@ -141,4 +140,100 @@ spec:
       protocol: TCP
   selector:
     run: my-nginx-nodeport
+```
+
+### NodePort
+
+启动方式：
+
+- Service yaml 的 `.spec.type` 设置为 `NodePort`。
+- 如果需要指定对外的端口，还需要配置 `.spec.ports[i].nodePort`。
+
+![](assets/nodeport.drawio.png)
+
+配置示例：
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-nginx-nodeport
+spec:
+  selector:
+    matchLabels:
+      run: my-nginx-nodeport
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        run: my-nginx-nodeport
+    spec:
+      containers:
+      - name: my-nginx-nodeport
+        image: nginx
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-nginx-nodeport
+  labels:
+    run: my-nginx-nodeport
+spec:
+  type: NodePort
+  ports:
+    - port: 80
+      protocol: TCP
+      targetPort: 80
+      # nodePort 没有配置时由系统分配，如果配置则是自行指定，不能冲突。
+      # nodePort: xxxx
+  selector:
+    run: my-nginx-nodeport
+```
+
+### Loadbalancer
+
+启动方式：
+
+- Service yaml 的 `.spec.type` 设置为 `LoadBalancer`。
+
+![](assets/loadbalancer.drawio.png)
+
+配置示例：
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-nginx-lb
+  labels:
+    run: my-nginx-lb
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+      protocol: TCP
+  selector:
+    run: my-nginx-lb
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-nginx-lb
+spec:
+  selector:
+    matchLabels:
+      run: my-nginx-lb
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        run: my-nginx-lb
+    spec:
+      containers:
+      - name: my-nginx-lb
+        image: nginx
+        ports:
+        - containerPort: 80
 ```
