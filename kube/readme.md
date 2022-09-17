@@ -33,11 +33,13 @@ kubectl taint nodes --all node-role.kubernetes.io/master-
 ```sh
 kubectl get ${resource} -n ${namespace} -l ${label}
 kubectl get pods
-kubectl get pods -n kube-system
-kubectl get pods -l app=hello
+kubectl get pods -n kube-system     # 指定命名空间
+kubectl get pods -l app=hello       # 根据标签筛选
+kubectl get pods  -o wide           # 输出更多 pods 信息
 
 # 以 yaml 方式显示资源
 kubectl get ${resource} ${resource-name} --output=yaml
+kubectl get ${resource} ${resource-name} -o=yaml
 
 # 显示所有的 Pods 资源的 yaml
 kubectl get pods --output=yaml
@@ -52,3 +54,10 @@ kubectl get pods --show-labels
 kubectl describe ${resource} ${resource-name} -n ${namespace}
 kubectl describe pod hello-pod
 ```
+
+kubectl 中常见资源类型缩写：
+
+- endpoints ---> ep
+- service -----> svc
+- namespace ---> ns
+- replicaset --> rs
