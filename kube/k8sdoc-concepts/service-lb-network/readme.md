@@ -28,3 +28,117 @@ Kubernetes 网络解决四方面的问题：
 - 集群网络在不同 pod 之间提供通信。
 - Service 资源允许你 向外暴露 Pods 中运行的应用， 以支持来自于集群外部的访问。
 - 可以使用 Services 来发布仅供集群内部使用的服务。
+
+## Service 工作图示
+
+Service 有以下工作模式：
+
+Service Type | subtype | 集群内部访问 | 集群外部访问
+-|-|-|-
+ClusterIP | Normal | 为集群内部访问提供 VIP。| 不支持
+ClusterIP | Headless | 不创建 VIP，集群内部访问依赖于 DNS 的 A 记录。| 不支持
+NodePort | - | 为集群内部访问提供 VIP。| 集群外部访问使用集群任意节点和某个对外的端口。外部请求 NodePort 时，会转发给 VIP。
+LoadBalancer | - | 为集群内部访问提供 VIP。| 会构造 NodePort，同时以使用使用云提供商的 LB 向外部暴露服务。LB 会负载均衡的转发给内网的 NodePort。
+
+**注意：**
+
+- 上述提到的 VIP 机制，基于网络代理机制，常见的代理机制是 iptables。
+
+### ClusterIP
+
+启用方式：
+
+- Service yaml 的 `.spec.type` 设置为 `ClusterIP` 或者不设置（默认就是 ClusterIP）。
+- Service yaml 的 `.spec.ClusterIP` 设置为有效且不冲突的集群 IP 或者不设置（默认是随机生成一个 ClusterIP）。
+
+![](assets/clusterip-normal.drawio.png)
+
+配置示例：
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-nginx
+spec:
+  selector:
+    matchLabels:
+      run: my-nginx
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        run: my-nginx
+    spec:
+      containers:
+      - name: my-nginx
+        image: nginx
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-nginx
+  labels:
+    run: my-nginx
+spec:
+  ports:
+    - port: 80
+      protocol: TCP
+      # targetPort 是转发的目标端口，不设置就用
+      # targetPort: 80
+  selector:
+    run: my-nginx
+  # 不设置 ClusterIP 就会随机选择
+  # ClusterIP: 10.0.171.239
+  # 不设置 type，默认就是 ClusterIP
+  # type: ClusterIP
+```
+
+### Headless Service
+
+启用方式：
+
+- Service yaml 的 `.spec.type` 设置为 `ClusterIP` 或者不设置（默认就是 ClusterIP）。
+- Service yaml 的 `.spec.ClusterIP` 设置为 `None`。
+
+![](assets/clusterip-headless.drawio.png)
+
+配置示例：
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-nginx-nodeport
+spec:
+  selector:
+    matchLabels:
+      run: my-nginx-nodeport
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        run: my-nginx-nodeport
+    spec:
+      containers:
+      - name: my-nginx-nodeport
+        image: nginx
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-nginx-nodeport
+  labels:
+    run: my-nginx-nodeport
+spec:
+  type: NodePort
+  ports:
+    - port: 80
+      protocol: TCP
+  selector:
+    run: my-nginx-nodeport
+```
