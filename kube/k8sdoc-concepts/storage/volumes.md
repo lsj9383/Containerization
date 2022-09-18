@@ -48,19 +48,19 @@ Kubernetes 支持下列类型的卷，有些已经弃用：
 
 卷类型 | 是否可用 | 数据共享范围 | 描述 | 使用前提
 -|-|-|-|-
-cephfs | √ | Pod 共享 | [cephfs](https://docs.ceph.com/en/latest/cephfs/) 卷允许你将现存的 CephFS 卷挂载到 Pod 中。<br>cephfs 卷的内容在 Pod 被删除时会被保留，只是卷被卸载了。 | 你的 Ceph 服务器必须已经运行并将要使用的 share 导出（exported）
-configMap | √ | Pod 共享 | 提供了向 Pod 注入**配置数据**的方法。 | 需要先配置 ConfigMap 对象才能使用。
-downwardAPI | √ | Pod 共享 | 通过文本的形式向 Pod 中的容器提供 downwardAPI 信息。 | -
+cephfs | √ | 所有 Pod 共享 | [cephfs](https://docs.ceph.com/en/latest/cephfs/) 卷允许你将现存的 CephFS 卷挂载到 Pod 中。<br>cephfs 卷的内容在 Pod 被删除时会被保留，只是卷被卸载了。 | 你的 Ceph 服务器必须已经运行并将要使用的 share 导出（exported）
+configMap | √ | 所有 Pod 共享 | 提供了向 Pod 注入**配置数据**的方法。 | 需要先配置 ConfigMap 对象才能使用。
+downwardAPI | √ | 所有 Pod 共享 | 通过文本的形式向 Pod 中的容器提供 downwardAPI 信息。 | -
 emptyDir | √ | Pod 内容器共享 | 每个 Pod 都会创建一个 Pod 内容器临时共享卷，即 emptyDir。当 Pod 删除时，emptyDir 会释放（容器重启不会释放 emptyDir）。 | -
-fc (光纤通道) | √ | Pod 共享 | 允许将现有的**光纤通道块存储卷**挂载到 Pod 中。 | 必须先配置 FC SAN Zoning，Kubernetes 主机才可以使用 fc。
-hostPath | √ | Node 上的 Pod 共享 | 将宿主机节点上的文件系统挂载到 Pod 容器中。存在安全风险，不推荐使用。若要使用，推荐只读方式。 | -
-iscsi | √ | Pod 共享 | 将 iSCSI (基于 IP 的 SCSI) 卷挂载到你的 Pod 中。<br> iscsi 卷的内容在删除 Pod 时会被保留，卷只是被卸载 | 必须先拥有自己的 iSCSI 服务器，并在上面创建卷。
+fc (光纤通道) | √ | 所有 Pod 共享 | 允许将现有的**光纤通道块存储卷**挂载到 Pod 中。 | 必须先配置 FC SAN Zoning，Kubernetes 主机才可以使用 fc。
+hostPath | √ | Node 上的 所有 Pod 共享 | 将宿主机节点上的文件系统挂载到 Pod 容器中。存在安全风险，不推荐使用。若要使用，推荐只读方式。 | -
+iscsi | √ | 所有 Pod 共享 | 将 iSCSI (基于 IP 的 SCSI) 卷挂载到你的 Pod 中。<br> iscsi 卷的内容在删除 Pod 时会被保留，卷只是被卸载 | 必须先拥有自己的 iSCSI 服务器，并在上面创建卷。
 local | √ | | |
-nfs | √ | Pod 共享 | 能将 NFS (网络文件系统) 挂载到你的 Pod 中。<br>nfs 卷的内容在删除 Pod 时会被保存，卷只是被卸载。| 必须运行自己的 NFS 服务器并将目标 share 导出备用。
-persistentVolumeClaim | √ | Pod 共享 | 用来将持久卷（PersistentVolume）挂载到 Pod 中。避免开发者关注各类存储系统细节。 | 待补充
+nfs | √ | 所有 Pod 共享 | 能将 NFS (网络文件系统) 挂载到你的 Pod 中。<br>nfs 卷的内容在删除 Pod 时会被保存，卷只是被卸载。| 必须运行自己的 NFS 服务器并将目标 share 导出备用。
+persistentVolumeClaim | √ | 根据 PV 使用的介质判断 | 用来将持久卷（PersistentVolume）挂载到 Pod 中。避免开发者关注各类存储系统细节。 | 需要先配置 PV（静态制备） 或者 StorageClass（动态制备）
 projected（投射）| √ | - | 投射卷能将若干现有的卷来源映射到同一目录上。| -
-rbd | √ | Pod 共享 | 将 Rados 块设备卷挂载到你的 Pod 中。<br>rbd 卷的内容在删除 Pod 时会被保存，卷只是被卸载。| 必须安装运行 Ceph。
-secret | √ | Pod 共享 | 用来给 Pod 传递敏**感信息**，例如密码。 | 需要先创建 Secret 对象。
+rbd | √ | 所有 Pod 共享 | 将 Rados 块设备卷挂载到你的 Pod 中。<br>rbd 卷的内容在删除 Pod 时会被保存，卷只是被卸载。| 必须安装运行 Ceph。
+secret | √ | 所有 Pod 共享 | 用来给 Pod 传递敏**感信息**，例如密码。 | 需要先创建 Secret 对象。
 awsElasticBlockStore  | × | | |
 azureDisk | × | | |
 azureFile | × | | |
