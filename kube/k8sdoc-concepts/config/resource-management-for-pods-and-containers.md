@@ -176,9 +176,16 @@ spec:
 
 **注意：**
 
-- 如果某容器内存用量超过其内存 request 并且所在节点内存不足时（即便没有达到 limit），容器所处的 Pod 可能被逐出。
+- 如果某容器内存用量超过其内存 request 并且所在节点内存不足时（即便没有达到 limit），容器所处的 Pod 可能被**驱逐**。
 - 每个容器可能被允许也可能不被允许使用超过其 CPU 限制的处理时间。但是，容器运行时不会由于 CPU 使用率过高而杀死 Pod 或容器。
 - 要确定某容器是否会由于资源限制而无法调度或被杀死，请参[阅疑难解答](https://kubernetes.io/zh-cn/docs/concepts/configuration/manage-resources-containers/#troubleshooting)。
+  
+另外，驱逐条件主要看 kubelet 的启动参数，这是一个实例：
+
+```sh
+ps aux|grep kubelet|grep evi
+root       29131  2.4  5.1 1954180 91232 ?       Ssl  Sep08 370:40 /usr/bin/kubelet --anonymous-auth=false --authentication-token-webhook=true --authorization-mode=Webhook --client-ca-file=/etc/kubernetes/cluster-ca.crt --cloud-config=/etc/kubernetes/qcloud.conf --cloud-provider=external --cluster-dns=172.16.254.137 --cluster-domain=cluster.local --eviction-hard=nodefs.available<10%,nodefs.inodesFree<5%,imagefs.available<15%,memory.available<100Mi --fail-swap-on=false --feature-gates=CSIMigration=true,CSIMigrationQcloudCbs=true,CSIMigrationQcloudCbsComplete=true --hostname-override=10.0.1.2 --image-pull-progress-deadline=10m0s --kube-reserved=cpu=100m,memory=512Mi --kubeconfig=/etc/kubernetes/kubelet-kubeconfig --max-pods=61 --network-plugin=cni --non-masquerade-cidr=0.0.0.0/0 --pod-infra-container-image=ccr.ccs.tencentyun.com/library/pause:latest --provider-id=qcloud:///100003/ins-la4y1b7u --register-schedulable=true --register-with-taints=tke.cloud.tencent.com/uninitialized=true:NoSchedule --serialize-image-pulls=false --v=2
+```
 
 ## 监控计算和内存资源用量
 
