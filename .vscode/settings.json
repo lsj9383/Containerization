@@ -28,6 +28,7 @@
         "nacti",
         "netlink",
         "nslookup",
+        "pgroupbasic",
         "pkts",
         "POSIX",
         "printenv",
@@ -38,6 +39,7 @@
         "tmpfs",
         "uids",
         "vcmts",
-        "wtsmm"
+        "wtsmm",
+        "ypofxz"
     ]
 }
