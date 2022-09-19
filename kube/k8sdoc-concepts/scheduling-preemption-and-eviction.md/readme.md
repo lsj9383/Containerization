@@ -31,3 +31,17 @@ Pod 干扰涉及的内容有：
 - [Pod 优先级和抢占](https://kubernetes.io/zh-cn/docs/concepts/scheduling-eviction/pod-priority-preemption/)
 - [节点压力驱逐](https://kubernetes.io/zh-cn/docs/concepts/scheduling-eviction/node-pressure-eviction/)
 - [API 发起的驱逐](https://kubernetes.io/zh-cn/docs/concepts/scheduling-eviction/api-eviction/)
+
+## QoS 服务质量
+
+更多 QoS 信息请参考：[配置 Pod 的服务质量](https://kubernetes.io/zh-cn/docs/tasks/configure-pod-container/quality-service-pod/)
+
+QoS 服务质量，是 Kubernetes 根据 Pod 的配置为 Pod 设置的一个属性，该属性为节点内存资源不足时，该如何释放资源提供了指导性参考。
+
+Kubernetes 创建 Pod 时就给 Pod 指定了下列一种 QoS 类（是 k8s 根据 Pod 的配置自动指定的）：
+
+QoS 类 | 含义 | 条件 | 描述
+-|-|-|-
+Guaranteed | 有保证的 Pod | 同时满足以下条件：<br>1) Pod 中的所有容器都且仅设置了 CPU 和内存的 limits。<br>2) pod中的所有容器都设置了 CPU 和内存的 requests。<br>3) Pod 中同一个容器的 request 和 limit 相等的。 | Kubernetes 认为此类 Pod 是稳定的，可以很好的控制 CPU 和内存，这些 Pod 的资源一定不会超过 request（因为 limit 和 request 相等）。
+Burstable | 不稳定的 Pod | Pod 中的容器设置了 request 和 limit，但是至少有一个 requests 和 limits 的设置不相同。<br>**注意：**若容器指定了 requests 而未指定 limits，则 limits 的值等于节点 resource 的最大值；若容器指定了 limits 而未指定 requests，则 requests 的值等于 limits。| Kubernetes 认为 Pod 是不稳定的，因为使用的资源可能会超过 request，导致节点容量不足。
+BestEffort | 尽最大努力的 Pod | Pod 中所有容器均为设置 request 和 limit。| Kubernetes 认为这是最不靠谱的 Pod。
