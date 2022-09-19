@@ -183,6 +183,57 @@ evictionMinimumReclaim:
 
 在这个例子中，如果 nodefs.available 信号满足驱逐条件，kubelet 会回收资源，直到达到 1Gi 的条件，然后继续回收至少 500Mi 直到信号达到 1.5Gi。
 
+这里有个疑问：最小回收过程中，节点会恢复成可调度状态否？（至少因为防震荡的原因，会默认持续5min）
+
 类似地，kubelet 会回收 imagefs 资源，直到 imagefs.available 信号达到 102Gi。
 
 对于所有资源，默认的 eviction-minimum-reclaim 为 0。
+
+## 节点内存不足行为
+
+虽然我们针对节点有驱逐 Pod 释放内存的能力，但是这始终需要时间，如果释放出内存前，节点遇到内存不足（OOM）事件，如何处理呢？
+
+在 Kubernetes 中，如果节点在 kubelet 回收足够内存之前遇到内存不足（OOM）事件，则节点依赖 oom_killer 来响应。
+
+kubelet 根据 Pod 的服务质量（QoS）为每个容器设置一个 oom_score_adj 值，得分越高的容器越容易被杀死。
+
+服务质量 | oom_score_adj
+-|-
+Guaranteed | -997
+BestEffort | 1000
+Burstable | min(max(2, 1000 - (1000 * memoryRequestBytes) / machineMemoryCapacityBytes), 999)
+
+oom_killer 根据它在节点上使用的内存百分比计算 oom_score， 然后加上 oom_score_adj 得到每个容器有效的 oom_score。然后它会杀死得分最高的容器。
+
+与 Pod 驱逐不同，如果容器被 OOM 杀死， kubelet 可以根据其 RestartPolicy 重新启动它。
+
+## 最佳实践
+
+以下部分描述了驱逐配置的最佳实践。
+
+### 可调度的资源和驱逐策略 
+
+当你为 kubelet 配置驱逐策略时， 你应该确保调度程序不会在 Pod 触发驱逐时对其进行调度，因为这类 Pod 会立即引起内存压力。
+
+考虑以下场景：
+
+- 节点内存容量：10Gi
+- 操作员希望为系统守护进程（内核、kubelet 等）保留 10% 的内存容量
+- 操作员希望在节点内存利用率达到 95% 以上时驱逐 Pod，以减少系统 OOM 的概率。
+
+为此，kubelet 启动设置如下：
+
+```sh
+--eviction-hard=memory.available<500Mi          # 硬驱逐条件
+--system-reserved=memory=1.5Gi                  # 系统预留
+```
+
+在此配置中，--system-reserved 标志为系统预留了 1.5Gi 的内存：`1.5Gi = 总内存的 10% + 驱逐条件量`。
+
+如果 Pod 使用的内存超过其 request 或者系统使用的内存超过 1Gi，此时 memory.available 地域 500Mi，就会触发驱逐条件。
+
+## DaemonSet
+
+Pod 优先级是做出驱逐决定的主要因素。
+
+如果你不希望 kubelet 驱逐属于 DaemonSet 的 Pod，请在 Pod 规约中为这些 Pod 提供足够高的 priorityClass。你还可以使用优先级较低的 priorityClass 或默认配置，仅在有足够资源时才运行 DaemonSet Pod。
