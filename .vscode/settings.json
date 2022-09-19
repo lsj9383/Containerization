@@ -34,6 +34,7 @@
         "mypod",
         "nacti",
         "netlink",
+        "nonpreempting",
         "nslookup",
         "pgroupbasic",
         "pkts",
