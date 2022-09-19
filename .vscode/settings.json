@@ -18,6 +18,7 @@
         "kubeadm",
         "kubelet",
         "Kuberneretes",
+        "kubescheduler",
         "libc",
         "myannotation",
         "myapp",
