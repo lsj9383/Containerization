@@ -14,6 +14,6 @@ Kubernetes 中的 Windows | -
 [配置](config/readme.md) | k8s 为配置 Pods 提供的资源。
 安全 | 确保云原生工作负载安全的一组概念。
 [策略](policies/readme.md) | 可配置的、可应用到一组资源的策略。
-调度、抢占和驱逐 | 在 k8s 中，调度 (scheduling) 指的是确保 Pod 匹配到合适的节点， 以便 kubelet 能够运行它们。<br>抢占 (Preemption) 指的是终止低优先级的 Pod 以便高优先级的 Pod 可以调度运行的过程。<br>驱逐 (Eviction) 是在资源匮乏的节点上，主动让一个或多个 Pod 失效的过程。
+[调度、抢占和驱逐](scheduling-preemption-and-eviction/readme.md) | 在 k8s 中，调度 (scheduling) 指的是确保 Pod 匹配到合适的节点， 以便 kubelet 能够运行它们。<br>抢占 (Preemption) 指的是终止低优先级的 Pod 以便高优先级的 Pod 可以调度运行的过程。<br>驱逐 (Eviction) 是在资源匮乏的节点上，主动让一个或多个 Pod 失效的过程。
 集群管理 | 关于创建和管理 k8s 集群的底层细节。
 扩展 Kubernetes | 改变你的 k8s 集群的行为的若干方法。
