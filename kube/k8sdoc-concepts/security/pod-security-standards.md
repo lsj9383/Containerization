@@ -168,6 +168,13 @@ metadata.annotations["container.apparmor.security.beta.kubernetes.io/*"]
 
 设置 SELinux 类型的操作是被限制的，设置自定义的 SELinux 用户或角色选项是被禁止的。
 
+SELinux是什么？
+> 安全增强型 Linux（SELinux）是一种采用安全架构的 Linux® 系统，它能够让管理员更好地管控哪些人可以访问系统。它最初是作为 Linux 内核的一系列补丁，由美国国家安全局（NSA）利用 Linux 安全模块（LSM）开发而成。
+
+更具体的说：
+
+> SELinux 定义了每个人对系统上的应用、进程和文件的访问权限。它利用安全策略（一组告知 SELinux 哪些能访问，哪些不能访问的规则）来强制执行策略所允许的访问。
+
 限制的字段：
 
 ```txt
