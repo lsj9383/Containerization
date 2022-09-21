@@ -1,5 +1,6 @@
 {
     "cSpell.words": [
+        "abac",
         "apiserver",
         "auths",
         "Awcg",
@@ -31,6 +32,7 @@
         "kustomize",
         "libc",
         "maxpid",
+        "mnnbg",
         "myannotation",
         "myapp",
         "mycontainer",
@@ -50,11 +52,13 @@
         "printenv",
         "Quata",
         "Rados",
+        "replicaset",
         "rlimit",
         "rshared",
         "RWOP",
         "Sandboxed",
         "Seccomp",
+        "serviceaccount",
         "SVCNAME",
         "tmpfs",
         "uids",
