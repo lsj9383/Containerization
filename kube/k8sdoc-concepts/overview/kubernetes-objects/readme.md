@@ -2,6 +2,18 @@
 
 说明了在 Kubernetes API 中是如何表示 Kubernetes 对象的，以及使用 `.yaml` 格式的文件表示 Kubernetes 对象。
 
+## 子章节
+
+- [Kubernetes 对象管理](object-manage.md)
+- [对象名称和 ID](object-names-ids.md)
+- [标签和选择算符](label-and-selectors.md)
+- [命名空间](namespace.md)
+- [注解](annotations.md)
+- [字段选择器](field-selectors.md)
+- [Finalizers](finalizers.md)
+- [属主与附属](owners-and-dependents.md)
+- [推荐使用的标签](recommended-labels.md)
+
 ## 理解 kubernetes 对象
 
 在 Kubernetes 系统中，Kubernetes 对象是`持久化的实体`。
