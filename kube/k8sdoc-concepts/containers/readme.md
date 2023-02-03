@@ -2,7 +2,7 @@
 
 ## 子章节
 
-- [镜像](iamge.md)
+- [镜像](image.md)
 - [容器环境](container-env.md)
 - [容器运行时类](runtime-class.md)
 - [容器声明周期回调](container-lifecycle-hooks.md)
