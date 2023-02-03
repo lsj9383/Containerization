@@ -6,7 +6,7 @@
 -|-
 [概述](overview/readme.md) | k8s 是一个可移植、可扩展的开源平台，用于管理容器化的工作负载和服务，方便进行声明式配置和自动化。<br>k8s 拥有一个庞大且快速增长的生态系统，其服务、支持和工具的使用范围广泛。
 [Kubernetes 架构](arch/readme.md) | k8s 背后的架构概念。
-[容器](container/readme.md) | 打包应用及其运行依赖环境的技术，例如 Docker 等。
+[容器](containers/readme.md) | 打包应用及其运行依赖环境的技术，例如 Docker 等。
 Kubernetes 中的 Windows | -
 [工作负载](workloads/readme.md) | 理解 Pods，这是 k8s 中可部署的最小对象，同时 k8s 还有辅助 Pods 运行的高层抽象对象（例如 Deployment）。
 [服务、负载均衡和联网](service-lb-network/readme.md) | k8s 网络背后的概念和资源。
