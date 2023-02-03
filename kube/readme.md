@@ -40,6 +40,17 @@ kubectl describe ${resource} ${resource-name} -n ${namespace}
 kubectl describe pod hello-pod
 ```
 
+删除资源
+
+```sh
+# 指令式
+kubectl delete ${resource} ${resource-name} -n ${namespace}
+kubectl delete pods hello-pod
+
+# 声明式
+kubectl delete -f hello.yaml
+```
+
 kubectl 中常见资源类型缩写：
 
 - endpoints ---> ep
