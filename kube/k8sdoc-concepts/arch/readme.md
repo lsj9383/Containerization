@@ -3,7 +3,7 @@
 ## 子章节
 
 - [节点](nodes.md)
-- [节点与控制面之间的通信](node-and-control-panel.md)
+- [节点与控制面之间的通信](nodes-and-control-panel.md)
 - [控制器](controllers.md)
 - 租约
 - [云控制器管理器](cloud-controller-manager.md)
