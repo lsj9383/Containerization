@@ -6,6 +6,13 @@
 
 ### 速记
 
+进入容器：
+
+```sh
+# docker 方案
+docker exec -i 69d1 bash
+```
+
 资源列表
 
 ```sh
