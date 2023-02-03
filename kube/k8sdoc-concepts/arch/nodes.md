@@ -135,6 +135,7 @@ kubectl describe node <节点名称>
 **Conditions** 字段描述了所有 Running 节点的状况。状况的示例包括：
 
 节点状况 | 描述
+-|-
 Ready | 如节点是健康的并已经准备好接收 Pod 则为 True；<br>False 表示节点不健康而且不能接收 Pod；<br>Unknown 表示节点控制器在最近 node-monitor-grace-period 期间（默认 40 秒）没有收到节点的消息（没有心跳）
 DiskPressure | True 表示节点存在磁盘空间压力，即磁盘可用量低, 否则为 False
 MemoryPressure | True 表示节点存在内存压力，即节点内存可用量低，否则为 False
