@@ -62,6 +62,21 @@ kubectl delete pods hello-pod
 kubectl delete -f hello.yaml
 ```
 
+## 集群方面
+
+做一些集群网络相关的测试，构造一个简单的 Pod：
+
+```sh
+$ kubectl run curl --image=radial/busyboxplus:curl -i --tty
+
+# Pod 名称是 curl
+$ kubectl get pods
+NAME                                     READY   STATUS    RESTARTS   AGE
+curl                                     1/1     Running   0          7s
+```
+
+## 常见缩写
+
 kubectl 中常见资源类型缩写：
 
 - endpoints ---> ep

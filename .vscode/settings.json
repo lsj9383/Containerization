@@ -5,6 +5,7 @@
         "auths",
         "Awcg",
         "Burstable",
+        "busyboxplus",
         "cgroupfs",
         "cgroups",
         "cloudprovider",
