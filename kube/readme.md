@@ -8,6 +8,15 @@
 
 对常用的 Kubernetes 运维操作命令进行记录。
 
+## 词汇
+
+kubectl 中常见资源类型缩写：
+
+- service -----> svc
+- namespace ---> ns
+- replicaset --> rs
+- endpoints ---> ep
+
 ### 容器方面
 
 进入容器：
@@ -55,11 +64,18 @@ kubectl get pod hello-pod -o=yaml
 
 ```sh
 # 指令式
-kubectl delete ${resource} ${resource-name} -n ${namespace}
+# kubectl delete ${resource} ${resource-name} -n ${namespace}
 kubectl delete pods hello-pod
 
 # 声明式
 kubectl delete -f hello.yaml
+```
+
+编辑资源
+
+```sh
+# kubectl delete <resource> <resource-name>
+kubectl edit pv task-pv-volume
 ```
 
 ## 集群方面
@@ -74,12 +90,3 @@ $ kubectl get pods
 NAME                                     READY   STATUS    RESTARTS   AGE
 curl                                     1/1     Running   0          7s
 ```
-
-## 常见缩写
-
-kubectl 中常见资源类型缩写：
-
-- endpoints ---> ep
-- service -----> svc
-- namespace ---> ns
-- replicaset --> rs
