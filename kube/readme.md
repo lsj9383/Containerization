@@ -17,6 +17,24 @@ kubectl 中常见资源类型缩写：
 - replicaset --> rs
 - endpoints ---> ep
 
+对于 Kubernetes 中的数值单位主要有（数值单位解释了数值的含义）：
+
+- 十进制单位：
+  - m（milli）
+  - k（kilo，有意小写）
+  - M（mega）
+  - G（giga）
+  - T（terra）
+  - P（peta）
+  - E（exa）
+- 二进制单位
+  - Ki (kibi)
+  - Mi (mebi)
+  - Gi (gibi)
+  - Ti (tebi)
+  - Pi (pebi)
+  - Ei (exbi)
+
 ### 容器方面
 
 进入容器：
