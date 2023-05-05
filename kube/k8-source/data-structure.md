@@ -10,7 +10,7 @@
 
 资源是 Kubernetes 中的最重要概念，Kubernetes 本质上就是资源管理系统，围绕着资源进行注册、管理和调度。
 
-Kubernetes 对资源进行分组和版本化，进而有了 Group 和 Version 等概念：
+Kubernetes 对资源进行分组和版本化，进而有了 Group 和 Version 等概念：2
 
 > Kubernetes 系统支持多个 Group，每个 Group 支持多个 Version，每个 Version 支持多个 Resource，其中部分资源同时会拥有自己的子资源（即 SubResource）。
 
@@ -198,3 +198,72 @@ type Pod struct {
 ```
 
 ### 资源定义
+
+Kubernetes 资源代码定义在 pkg/apis，将会包括如下内容：
+
+- 支持的资源类型（types.go）。
+- 资源验证方法（validation.go）。
+- 资源注册至资源注册表的方法（install/install.go）。
+- 资源外部版本的转换方法（conversion.go）。
+- 资源外部版本的默认值（defaults.go）。
+
+**注意：**
+
+- 资源外部版本的结构体定义不在 pkg/apis 目录中。
+
+以 Deployment 资源为例：
+
+![](assets/7.png)
+
+包括如下主要文件：
+
+文件 | 描述
+-|-
+doc.go | GoDoc 文件，定义了当前包的注释信息。在 Kubernetes 资源包中，它还担当了代码生成器的全局 Tags 描述文件。
+register.go | 定义了资源组、资源版本及资源的注册信息。
+types.go | 定义了在当前资源组、资源版本下所支持的资源类型。
+v1、v1beta1、v1beta2 目录 | 定义了资源组下拥有的资源版本的资源（即外部版本）。
+install 目录 | 把当前资源组下的所有资源注册到资源注册表中。
+validation 目录 | 定义了资源的验证方法。
+zz_generated.deepcopy.go | 定义了资源的深复制操作，该文件由代码生成器自动生成。
+
+### 将资源注册到资源注册表中
+
+只有将资源注册到资源注册表中，该资源才能使用（实例化出资源实体）。
+
+每个 Group 都有一个负责自己组的资源的注册，以 core 组为例子：[pkg/apis/core/install/install.go](https://github.com/kubernetes/kubernetes/blob/master/pkg/apis/core/install/install.go)。
+
+```go
+package install
+
+import (
+	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
+	"k8s.io/kubernetes/pkg/apis/core"
+	"k8s.io/kubernetes/pkg/apis/core/v1"
+)
+
+func init() {
+	Install(legacyscheme.Scheme)
+}
+
+// Install registers the API group and adds types to a scheme
+func Install(scheme *runtime.Scheme) {
+	utilruntime.Must(core.AddToScheme(scheme))
+	utilruntime.Must(v1.AddToScheme(scheme))
+	utilruntime.Must(scheme.SetVersionPriority(v1.SchemeGroupVersion))
+}
+```
+
+**注意：**
+
+- **legacyscheme.Scheme** 是全局资源注册表，Kubernetes 的所有资源信息都交给资源注册表统一管理。
+- core.AddToScheme 函数注册 core 资源组**内部版本**的资源。
+- v1.AddToScheme 函数注册 core 资源组**外部版本**的资源。
+- scheme.SetVersionPriority 函数注册资源组的版本顺序，如有多个资源版本，排在最前面的为资源首选版本。
+- go 的 import 中 **"k8s.io/xxx"**，代表的是仓库中 `kubernetes/staging/src/k8s.io/xxx` 的目录或文件，可参考 [go.mod](https://github.com/kubernetes/kubernetes/blob/master/go.mod)。
+
+### 资源首选版本
+
+
