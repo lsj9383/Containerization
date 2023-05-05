@@ -1,6 +1,7 @@
 {
     "cSpell.words": [
         "abac",
+        "apimachinery",
         "apiserver",
         "auths",
         "Awcg",
@@ -40,6 +41,7 @@
         "libc",
         "maxpid",
         "mebi",
+        "metav",
         "mnnbg",
         "myannotation",
         "myapp",
@@ -54,6 +56,7 @@
         "netlink",
         "nonpreempting",
         "nslookup",
+        "omitempty",
         "pebi",
         "pgroupbasic",
         "PKCS",
@@ -72,10 +75,12 @@
         "serviceaccount",
         "subjectaccessreviews",
         "SUBRESOURCE",
+        "subresources",
         "SVCNAME",
         "tebi",
         "tmpfs",
         "uids",
+        "varint",
         "vcmts",
         "wtsmm",
         "ypofxz"
