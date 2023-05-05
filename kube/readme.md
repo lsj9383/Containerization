@@ -1,5 +1,7 @@
 # Kubernetes
 
+[TOC]
+
 ## 概述
 
 [Kubernetes 文档](https://kubernetes.io/zh-cn/docs/home/)
@@ -8,7 +10,7 @@
 
 对常用的 Kubernetes 运维操作命令进行记录。
 
-## 词汇
+### 词汇
 
 kubectl 中常见资源类型缩写：
 
@@ -16,25 +18,6 @@ kubectl 中常见资源类型缩写：
 - namespace ---> ns
 - replicaset --> rs
 - endpoints ---> ep
-
-对于 Kubernetes 中的数值单位主要有（数值单位解释了数值的大小含义）：
-
-- 十进制单位：
-  - m（milli）
-  - k（kilo，有意小写）
-  - M（mega）
-  - G（giga）
-  - T（terra）
-  - P（peta）
-  - E（exa）
-- 二进制单位
-  - Ki (kibi)
-  - Mi (mebi)
-  - Gi (gibi)
-  - Ti (tebi)
-  - Pi (pebi)
-  - Ei (exbi)
-- 无单位：采用十进制，例如 1.5 就代表 1500，而 15000 就代表 15M。
 
 ### 容器方面
 
@@ -97,7 +80,45 @@ kubectl delete -f hello.yaml
 kubectl edit pv task-pv-volume
 ```
 
-## 集群方面
+### 集群方面
+
+组件方面：
+
+```sh
+# 查看客户端 kubectl 版本和 kubernetes 集群（Master）版本
+$ kubectl version
+Client Version: version.Info{Major:"1", Minor:"22+", GitVersion:"v1.22.5-tke.9", GitCommit:"717871e426fe30284bc7675e1c28c70f49c7750c", GitTreeState:"clean", BuildDate:"2023-01-04T14:20:35Z", GoVersion:"go1.16.14", Compiler:"gc", Platform:"linux/amd64"}
+Server Version: version.Info{Major:"1", Minor:"22+", GitVersion:"v1.22.5-tke.9", GitCommit:"717871e426fe30284bc7675e1c28c70f49c7750c", GitTreeState:"clean", BuildDate:"2023-01-04T14:17:29Z", GoVersion:"go1.16.14", Compiler:"gc", Platform:"linux/amd64"}
+
+# 查看集群信息
+$ kubectl cluster-info
+Kubernetes control plane is running at https://10.0.1.15
+CoreDNS is running at https://10.0.1.15/api/v1/namespaces/kube-system/services/kube-dns:dns-tcp/proxy
+
+To further debug and diagnose cluster problems, use 'kubectl cluster-info dump'.
+
+# 查看 kubectl 配置
+$ kubectl config view
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority-data: DATA+OMITTED
+    server: https://10.0.1.15
+  name: cls-0glkf4gu
+contexts:
+- context:
+    cluster: cls-0glkf4gu
+    user: "99449107"
+  name: cls-0glkf4gu-99449107-context-default
+current-context: cls-0glkf4gu-99449107-context-default
+kind: Config
+preferences: {}
+users:
+- name: "99449107"
+  user:
+    client-certificate-data: REDACTED
+    client-key-data: REDACTED
+```
 
 做一些集群网络相关的测试，构造一个简单的 Pod：
 
@@ -108,4 +129,23 @@ $ kubectl run curl --image=radial/busyboxplus:curl -i --tty
 $ kubectl get pods
 NAME                                     READY   STATUS    RESTARTS   AGE
 curl                                     1/1     Running   0          7s
+```
+
+### 调试相关
+
+```sh
+# 列出资源
+$ kubectl get
+
+# 显示有关资源的详细信息
+$ kubectl describe
+
+# 打印 pod 和其中容器的日志
+$ kubectl logs
+
+# 在 pod 中的容器上执行命令
+$ kubectl exec
+
+# 直接启动一个 pod
+$ kubectl run
 ```
