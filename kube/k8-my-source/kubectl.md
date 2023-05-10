@@ -4,17 +4,19 @@
 
 ## 概览
 
+代码版本：[kubernetes v1.14.0](https://github.com/kubernetes/kubernetes/tree/v1.14.0)。
+
 ## 源码
 
 ### 入口
 
-[cmd/kubectl/kubectl.go](https://github.com/kubernetes/kubernetes/blob/v1.22.0/cmd/kubectl/kubectl.go)
+[cmd/kubectl/kubectl.go](https://github.com/kubernetes/kubernetes/blob/v1.14.0/cmd/kubectl/kubectl.go)
 
 ```go
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
-    // 构造 Command
+	// 构造 Command 对象
 	command := cmd.NewDefaultKubectlCommand()
 
 	// TODO: once we switch everything over to Cobra commands, we can go back to calling
@@ -27,14 +29,13 @@ func main() {
 	defer logs.FlushLogs()
 
 	if err := command.Execute(); err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
 }
 ```
 
-### 构造命令
-
-构造根命令：
+### kubectl 根命令
 
 ```go
 func NewDefaultKubectlCommand() *cobra.Command {
@@ -77,11 +78,7 @@ func NewDefaultKubectlCommandWithArgs(pluginHandler PluginHandler,
 }
 
 func NewKubectlCommand(in io.Reader, out, err io.Writer) *cobra.Command {
-	warningHandler := rest.NewWarningWriter(err,
-                                            rest.WarningWriterOptions{Deduplicate: true, Color: term.AllowsColorOutput(err)})
-	warningsAsErrors := false
-
-	// Parent command to which all subcommands are added.
+	// 构造 Command 根命令
 	cmds := &cobra.Command{
 		Use:   "kubectl",
 		Short: i18n.T("kubectl controls the Kubernetes cluster manager"),
@@ -91,30 +88,13 @@ func NewKubectlCommand(in io.Reader, out, err io.Writer) *cobra.Command {
       Find more information at:
             https://kubernetes.io/docs/reference/kubectl/overview/`),
 		Run: runHelp,
-		// 进行 Profiling 性能监测
-		PersistentPreRunE: func(*cobra.Command, []string) error {
-			rest.SetDefaultWarningHandler(warningHandler)
-			return initProfiling()
-		},
-		PersistentPostRunE: func(*cobra.Command, []string) error {
-			if err := flushProfiling(); err != nil {
-				return err
-			}
-			if warningsAsErrors {
-				count := warningHandler.WarningCount()
-				switch count {
-				case 0:
-					// no warnings
-				case 1:
-					return fmt.Errorf("%d warning received", count)
-				default:
-					return fmt.Errorf("%d warnings received", count)
-				}
-			}
-			return nil
-		},
+		// Hook before and after Run initialize and write profiles to disk, respectively.
+		PersistentPreRunE: func(*cobra.Command, []string) error { return initProfiling() },
+		PersistentPostRunE: func(*cobra.Command, []string) error { return flushProfiling() },
+		BashCompletionFunction: bashCompletionFunc,
 	}
 
+	// 全局命令函参数，可以用于子命令
 	flags := cmds.PersistentFlags()
 	flags.SetNormalizeFunc(cliflag.WarnWordSepNormalizeFunc) // Warn for "_" flags
 
@@ -124,14 +104,14 @@ func NewKubectlCommand(in io.Reader, out, err io.Writer) *cobra.Command {
 
 	addProfilingFlags(flags)
 
-	flags.BoolVar(&warningsAsErrors, "warnings-as-errors", warningsAsErrors, "Treat warnings received from the server as errors and exit with a non-zero exit code")
-
+	// 创建 kubectl 使用的配置文件对象
 	kubeConfigFlags := genericclioptions.NewConfigFlags(true).WithDeprecatedPasswordFlag()
+
+	// 将 kubectl 使用的配置文件的字段关联到命令函参数上，以使得可以通过命令函参数覆盖
 	kubeConfigFlags.AddFlags(flags)
+
 	matchVersionKubeConfigFlags := cmdutil.NewMatchVersionFlags(kubeConfigFlags)
 	matchVersionKubeConfigFlags.AddFlags(cmds.PersistentFlags())
-	// Updates hooks to add kubectl command headers: SIG CLI KEP 859.
-	addCmdHeaderHooks(cmds, kubeConfigFlags)
 
 	cmds.PersistentFlags().AddGoFlagSet(flag.CommandLine)
 
@@ -149,12 +129,6 @@ func NewKubectlCommand(in io.Reader, out, err io.Writer) *cobra.Command {
 
 	ioStreams := genericclioptions.IOStreams{In: in, Out: out, ErrOut: err}
 
-	// Proxy command is incompatible with CommandHeaderRoundTripper, so
-	// clear the WrapConfigFn before running proxy command.
-	proxyCmd := proxy.NewCmdProxy(f, ioStreams)
-	proxyCmd.PreRun = func(cmd *cobra.Command, args []string) {
-		kubeConfigFlags.WrapConfigFn = nil
-	}
 	groups := templates.CommandGroups{
 		{
 			Message: "Basic Commands (Beginner):",
@@ -178,6 +152,7 @@ func NewKubectlCommand(in io.Reader, out, err io.Writer) *cobra.Command {
 			Message: "Deploy Commands:",
 			Commands: []*cobra.Command{
 				rollout.NewCmdRollout(f, ioStreams),
+				rollingupdate.NewCmdRollingUpdate(f, ioStreams),
 				scale.NewCmdScale(f, ioStreams),
 				autoscale.NewCmdAutoscale(f, ioStreams),
 			},
@@ -202,10 +177,9 @@ func NewKubectlCommand(in io.Reader, out, err io.Writer) *cobra.Command {
 				attach.NewCmdAttach(f, ioStreams),
 				cmdexec.NewCmdExec(f, ioStreams),
 				portforward.NewCmdPortForward(f, ioStreams),
-				proxyCmd,
+				proxy.NewCmdProxy(f, ioStreams),
 				cp.NewCmdCp(f, ioStreams),
 				auth.NewCmdAuth(f, ioStreams),
-				debug.NewCmdDebug(f, ioStreams),
 			},
 		},
 		{
@@ -216,6 +190,7 @@ func NewKubectlCommand(in io.Reader, out, err io.Writer) *cobra.Command {
 				patch.NewCmdPatch(f, ioStreams),
 				replace.NewCmdReplace(f, ioStreams),
 				wait.NewCmdWait(f, ioStreams),
+				convert.NewCmdConvert(f, ioStreams),
 				kustomize.NewCmdKustomize(ioStreams),
 			},
 		},
@@ -233,19 +208,28 @@ func NewKubectlCommand(in io.Reader, out, err io.Writer) *cobra.Command {
 	filters := []string{"options"}
 
 	// Hide the "alpha" subcommand if there are no alpha commands in this build.
-	alpha := NewCmdAlpha(ioStreams)
+	alpha := NewCmdAlpha(f, ioStreams)
 	if !alpha.HasSubCommands() {
 		filters = append(filters, alpha.Name())
 	}
 
 	templates.ActsAsRootCommand(cmds, filters, groups...)
 
-	util.SetFactoryForCompletion(f)
-	registerCompletionFuncForGlobalFlags(cmds, f)
+	for name, completion := range bashCompletionFlags {
+		if cmds.Flag(name) != nil {
+			if cmds.Flag(name).Annotations == nil {
+				cmds.Flag(name).Annotations = map[string][]string{}
+			}
+			cmds.Flag(name).Annotations[cobra.BashCompCustom] = append(
+				cmds.Flag(name).Annotations[cobra.BashCompCustom],
+				completion,
+			)
+		}
+	}
 
 	cmds.AddCommand(alpha)
-	cmds.AddCommand(cmdconfig.NewCmdConfig(clientcmd.NewDefaultPathOptions(), ioStreams))
-	cmds.AddCommand(plugin.NewCmdPlugin(ioStreams))
+	cmds.AddCommand(cmdconfig.NewCmdConfig(f, clientcmd.NewDefaultPathOptions(), ioStreams))
+	cmds.AddCommand(plugin.NewCmdPlugin(f, ioStreams))
 	cmds.AddCommand(version.NewCmdVersion(f, ioStreams))
 	cmds.AddCommand(apiresources.NewCmdAPIVersions(f, ioStreams))
 	cmds.AddCommand(apiresources.NewCmdAPIResources(f, ioStreams))
@@ -255,7 +239,7 @@ func NewKubectlCommand(in io.Reader, out, err io.Writer) *cobra.Command {
 }
 ```
 
-### Create 命令实现
+### kubectl create 子命令实现
 
 ```go
 func NewCmdCreate(f cmdutil.Factory, ioStreams genericclioptions.IOStreams) *cobra.Command {
@@ -342,228 +326,433 @@ func NewCmdCreate(f cmdutil.Factory, ioStreams genericclioptions.IOStreams) *cob
 	cmd.AddCommand(NewCmdCreateIngress(f, ioStreams))
 	return cmd
 }
+```
 
-// CreateOptions 用于记录 Create 的命令行参数信息
-type CreateOptions struct {
-	PrintFlags  *genericclioptions.PrintFlags
-	RecordFlags *genericclioptions.RecordFlags
+### kubectl create 子命令
 
-	DryRunStrategy cmdutil.DryRunStrategy
-	DryRunVerifier *resource.DryRunVerifier
+kubectl create 有非常多的子命令，并且这些子命令有较多复用。
 
-	fieldManager string
+[pkg/kubectl/cmd/create/create.go]
 
-	FilenameOptions  resource.FilenameOptions
-	Selector         string
-	EditBeforeCreate bool
-	Raw              string
+子命令公共结构体：
 
-	Recorder genericclioptions.Recorder
-	PrintObj func(obj kruntime.Object) error
+```go
+// NewCreateSubcommandOptions returns initialized CreateSubcommandOptions
+func NewCreateSubcommandOptions(ioStreams genericclioptions.IOStreams) *CreateSubcommandOptions {
+	return &CreateSubcommandOptions{
+		PrintFlags: genericclioptions.NewPrintFlags("created").WithTypeSetter(scheme.Scheme),
+		IOStreams:  ioStreams,
+	}
+}
+
+// CreateSubcommandOptions is an options struct to support create subcommands
+type CreateSubcommandOptions struct {
+	// PrintFlags holds options necessary for obtaining a printer
+	PrintFlags *genericclioptions.PrintFlags
+
+	// Name of resource being created
+	Name string
+
+	// StructuredGenerator is the resource generator for the object being created
+	StructuredGenerator generate.StructuredGenerator
+
+	// DryRun is true if the command should be simulated but not run against the server
+	DryRun           bool
+	CreateAnnotation bool
+
+	Namespace        string
+	EnforceNamespace bool
+
+	Mapper        meta.RESTMapper
+	DynamicClient dynamic.Interface
+
+	PrintObj printers.ResourcePrinterFunc
 
 	genericclioptions.IOStreams
 }
-
-// staging/src/k8s.io/cli-runtime/pkg/resource/builder.go
-type FilenameOptions struct {
-	Filenames []string
-	Kustomize string
-	Recursive bool
-}
 ```
 
-#### 添加 create 的参数
-
-为 create 添加文件名选项 [staging/src/k8s.io/kubectl/pkg/cmd/util/helpers.go]()：
+子命令的通用参数补全方法，所有 create 子命令都会调用：
 
 ```go
-// cmdutil.AddFilenameOptionFlags(cmd, &o.FilenameOptions, usage)
-
-func AddFilenameOptionFlags(cmd *cobra.Command, options *resource.FilenameOptions, usage string) {
-	AddJsonFilenameFlag(cmd.Flags(), &options.Filenames, "Filename, directory, or URL to files "+usage)
-	AddKustomizeFlag(cmd.Flags(), &options.Kustomize)
-	cmd.Flags().BoolVarP(&options.Recursive, "recursive", "R", options.Recursive, "Process the directory used in -f, --filename recursively. Useful when you want to manage related manifests organized within the same directory.")
-}
-
-func AddJsonFilenameFlag(flags *pflag.FlagSet, value *[]string, usage string) {
-	flags.StringSliceVarP(value, "filename", "f", *value, usage)
-	annotations := make([]string, 0, len(resource.FileExtensions))
-	for _, ext := range resource.FileExtensions {
-		annotations = append(annotations, strings.TrimLeft(ext, "."))
-	}
-	flags.SetAnnotation("filename", cobra.BashCompFilenameExt, annotations)
-}
-
-// AddKustomizeFlag adds kustomize flag to a command
-func AddKustomizeFlag(flags *pflag.FlagSet, value *string) {
-	flags.StringVarP(value, "kustomize", "k", *value, "Process the kustomization directory. This flag can't be used together with -f or -R.")
-}
-```
-
-添加校验的选项 [staging/src/k8s.io/kubectl/pkg/cmd/util/helpers.go]()：
-
-```go
-// cmdutil.AddValidateFlags(cmd)
-
-func AddValidateFlags(cmd *cobra.Command) {
-	cmd.Flags().Bool("validate", true, "If true, use a schema to validate the input before sending it")
-}
-```
-
-```go
-// AddDryRunFlag adds dry-run flag to a command. Usually used by mutations.
-func AddDryRunFlag(cmd *cobra.Command) {
-	cmd.Flags().String(
-		"dry-run",
-		"none",
-		`Must be "none", "server", or "client". If client strategy, only print the object that would be sent, without sending it. If server strategy, submit server-side request without persisting the resource.`,
-	)
-	cmd.Flags().Lookup("dry-run").NoOptDefVal = "unchanged"
-}
-```
-
-添加输出的选项 [staging/src/k8s.io/cli-runtime/pkg/genericclioptions/print_flags.go]()：
-
-```go
-// AddFlags receives a *cobra.Command reference and binds
-// flags related to JSON/Yaml/Name/Template printing to it
-func (f *PrintFlags) AddFlags(cmd *cobra.Command) {
-	f.JSONYamlPrintFlags.AddFlags(cmd)
-	f.NamePrintFlags.AddFlags(cmd)
-	f.TemplatePrinterFlags.AddFlags(cmd)
-
-	if f.OutputFormat != nil {
-		cmd.Flags().StringVarP(f.OutputFormat, "output", "o", *f.OutputFormat, fmt.Sprintf("Output format. One of: %s.", strings.Join(f.AllowedFormats(), "|")))
-		if f.OutputFlagSpecified == nil {
-			f.OutputFlagSpecified = func() bool {
-				return cmd.Flag("output").Changed
-			}
-		}
-	}
-}
-```
-
-#### 补全参数
-
-在执行 create 回调时，会进行参数补全。
-
-```go
-// Complete completes all the required options
-func (o *CreateOptions) Complete(f cmdutil.Factory, cmd *cobra.Command) error {
-	var err error
-	o.RecordFlags.Complete(cmd)
-	o.Recorder, err = o.RecordFlags.ToRecorder()
+// 补全所有的子命令上下文参数
+func (o *CreateSubcommandOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []string, generator generate.StructuredGenerator) error {
+	// kubectl create namespace helloworld
+	// 获得资源名 name = helloworld
+	name, err := NameFromCommandArgs(cmd, args)
 	if err != nil {
 		return err
 	}
 
-	o.DryRunStrategy, err = cmdutil.GetDryRunStrategy(cmd)
-	if err != nil {
-		return err
-	}
-	cmdutil.PrintFlagsWithDryRunStrategy(o.PrintFlags, o.DryRunStrategy)
-	dynamicClient, err := f.DynamicClient()
-	if err != nil {
-		return err
-	}
-	o.DryRunVerifier = resource.NewDryRunVerifier(dynamicClient, f.OpenAPIGetter())
+	o.Name = name
+	o.StructuredGenerator = generator
+	o.DryRun = cmdutil.GetDryRunFlag(cmd)
+	o.CreateAnnotation = cmdutil.GetFlagBool(cmd, cmdutil.ApplyAnnotationsFlag)
 
+	if o.DryRun {
+		o.PrintFlags.Complete("%s (dry run)")
+	}
 	printer, err := o.PrintFlags.ToPrinter()
 	if err != nil {
 		return err
 	}
 
-	o.PrintObj = func(obj kruntime.Object) error {
-		return printer.PrintObj(obj, o.Out)
+	o.PrintObj = func(obj kruntime.Object, out io.Writer) error {
+		return printer.PrintObj(obj, out)
+	}
+
+	o.Namespace, o.EnforceNamespace, err = f.ToRawKubeConfigLoader().Namespace()
+	if err != nil {
+		return err
+	}
+
+	// 使用 kubectl config 生成 dynamic client
+	o.DynamicClient, err = f.DynamicClient()
+	if err != nil {
+		return err
+	}
+
+	o.Mapper, err = f.ToRESTMapper()
+	if err != nil {
+		return err
 	}
 
 	return nil
 }
 ```
 
-#### 核心创建逻辑
+子命令通用的资源创建：
 
 ```go
-// RunCreate performs the creation
-func (o *CreateOptions) RunCreate(f cmdutil.Factory, cmd *cobra.Command) error {
-	// raw only makes sense for a single file resource multiple objects aren't likely to do what you want.
-	// the validator enforces this, so
-	if len(o.Raw) > 0 {
-		restClient, err := f.RESTClient()
-		if err != nil {
-			return err
-		}
-		return rawhttp.RawPost(restClient, o.IOStreams, o.Raw, o.FilenameOptions.Filenames[0])
-	}
-
-	if o.EditBeforeCreate {
-		return RunEditOnCreate(f, o.PrintFlags, o.RecordFlags, o.IOStreams, cmd, &o.FilenameOptions, o.fieldManager)
-	}
-	schema, err := f.Validator(cmdutil.GetFlagBool(cmd, "validate"))
+// Run executes a create subcommand using the specified options
+func (o *CreateSubcommandOptions) Run() error {
+	obj, err := o.StructuredGenerator.StructuredGenerate()
 	if err != nil {
 		return err
 	}
 
-	cmdNamespace, enforceNamespace, err := f.ToRawKubeConfigLoader().Namespace()
+	if o.DryRun {
+		if meta, err := meta.Accessor(obj); err == nil && o.EnforceNamespace {
+			meta.SetNamespace(o.Namespace)
+		}
+		return o.PrintObj(obj, o.Out)
+	}
+
+	// create subcommands have compiled knowledge of things they create, so type them directly
+	gvks, _, err := scheme.Scheme.ObjectKinds(obj)
+	if err != nil {
+		return err
+	}
+	gvk := gvks[0]
+	mapping, err := o.Mapper.RESTMapping(schema.GroupKind{Group: gvk.Group, Kind: gvk.Kind}, gvk.Version)
 	if err != nil {
 		return err
 	}
 
-	r := f.NewBuilder().
-		Unstructured().
-		Schema(schema).
-		ContinueOnError().
-		NamespaceParam(cmdNamespace).DefaultNamespace().
-		FilenameParam(enforceNamespace, &o.FilenameOptions).
-		LabelSelectorParam(o.Selector).
-		Flatten().
-		Do()
-	err = r.Err()
+	if err := kubectl.CreateOrUpdateAnnotation(o.CreateAnnotation, obj, scheme.DefaultJSONEncoder()); err != nil {
+		return err
+	}
+
+	asUnstructured := &unstructured.Unstructured{}
+
+	if err := scheme.Scheme.Convert(obj, asUnstructured, nil); err != nil {
+		return err
+	}
+	if mapping.Scope.Name() == meta.RESTScopeNameRoot {
+		o.Namespace = ""
+	}
+	actualObject, err := o.DynamicClient.Resource(mapping.Resource).Namespace(o.Namespace).Create(asUnstructured, metav1.CreateOptions{})
 	if err != nil {
 		return err
 	}
 
-	count := 0
-	err = r.Visit(func(info *resource.Info, err error) error {
-		if err != nil {
-			return err
-		}
-		if err := util.CreateOrUpdateAnnotation(cmdutil.GetFlagBool(cmd, cmdutil.ApplyAnnotationsFlag), info.Object, scheme.DefaultJSONEncoder()); err != nil {
-			return cmdutil.AddSourceToErr("creating", info.Source, err)
-		}
+	// ensure we pass a versioned object to the printer
+	obj = actualObject
 
-		if err := o.Recorder.Record(info.Object); err != nil {
-			klog.V(4).Infof("error recording current command: %v", err)
-		}
+	return o.PrintObj(obj, o.Out)
+}
+```
 
-		if o.DryRunStrategy != cmdutil.DryRunClient {
-			if o.DryRunStrategy == cmdutil.DryRunServer {
-				if err := o.DryRunVerifier.HasSupport(info.Mapping.GroupVersionKind); err != nil {
-					return cmdutil.AddSourceToErr("creating", info.Source, err)
-				}
-			}
-			obj, err := resource.
-				NewHelper(info.Client, info.Mapping).
-				DryRun(o.DryRunStrategy == cmdutil.DryRunServer).
-				WithFieldManager(o.fieldManager).
-				Create(info.Namespace, true, info.Object)
-			if err != nil {
-				return cmdutil.AddSourceToErr("creating", info.Source, err)
-			}
-			info.Refresh(obj, true)
-		}
+#### kubectl create namespace 命令实现
 
-		count++
+[pkg/kubectl/cmd/create/create_namespace.go](https://github.com/kubernetes/kubernetes/blob/v1.14.0/pkg/kubectl/cmd/create/create_namespace.go)
 
-		return o.PrintObj(info.Object)
-	})
+```go
+func NewCmdCreateNamespace(f cmdutil.Factory, ioStreams genericclioptions.IOStreams) *cobra.Command {
+	// Create Namespace 的命令行选项上下文缓存
+	options := &NamespaceOpts{
+		CreateSubcommandOptions: NewCreateSubcommandOptions(ioStreams),
+	}
+
+	cmd := &cobra.Command{
+		Use:                   "namespace NAME [--dry-run]",
+		DisableFlagsInUseLine: true,
+		Aliases:               []string{"ns"},
+		Short:                 i18n.T("Create a namespace with the specified name"),
+		Long:                  namespaceLong,
+		Example:               namespaceExample,
+		Run: func(cmd *cobra.Command, args []string) {
+			cmdutil.CheckErr(options.Complete(f, cmd, args))
+			cmdutil.CheckErr(options.Run())
+		},
+	}
+
+	options.CreateSubcommandOptions.PrintFlags.AddFlags(cmd)
+
+	// 支持命令函参数：--save-config
+	cmdutil.AddApplyAnnotationFlags(cmd)
+
+	// 支持命令函参数：--validate
+	cmdutil.AddValidateFlags(cmd)
+
+	// 支持命令函参数：--generator / --dry-run
+	cmdutil.AddGeneratorFlags(cmd, generateversioned.NamespaceV1GeneratorName)
+
+	return cmd
+}
+
+// Complete completes all the required options
+func (o *NamespaceOpts) Complete(f cmdutil.Factory, cmd *cobra.Command, args []string) error {
+	name, err := NameFromCommandArgs(cmd, args)
 	if err != nil {
 		return err
 	}
-	if count == 0 {
-		return fmt.Errorf("no objects passed to create")
+
+	var generator generate.StructuredGenerator
+	switch generatorName := cmdutil.GetFlagString(cmd, "generator"); generatorName {
+	case generateversioned.NamespaceV1GeneratorName:
+		generator = &generateversioned.NamespaceGeneratorV1{Name: name}
+	default:
+		return errUnsupportedGenerator(cmd, generatorName)
 	}
-	return nil
+
+	// 补全 Create 子命令参数
+	return o.CreateSubcommandOptions.Complete(f, cmd, args, generator)
+}
+
+// Run calls the CreateSubcommandOptions.Run in NamespaceOpts instance
+// 使用 create 子命令公共方法创建 namespace
+func (o *NamespaceOpts) Run() error {
+	return o.CreateSubcommandOptions.Run()
+}
+```
+
+#### kubectl create service
+
+```go
+// NewCmdCreateService is a macro command to create a new service
+func NewCmdCreateService(f cmdutil.Factory, ioStreams genericclioptions.IOStreams) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "service",
+		Aliases: []string{"svc"},
+		Short:   i18n.T("Create a service using specified subcommand."),
+		Long:    "Create a service using specified subcommand.",
+		Run:     cmdutil.DefaultSubCommandRun(ioStreams.ErrOut),
+	}
+	cmd.AddCommand(NewCmdCreateServiceClusterIP(f, ioStreams))
+	cmd.AddCommand(NewCmdCreateServiceNodePort(f, ioStreams))
+	cmd.AddCommand(NewCmdCreateServiceLoadBalancer(f, ioStreams))
+	cmd.AddCommand(NewCmdCreateServiceExternalName(f, ioStreams))
+
+	return cmd
+}
+```
+
+## Kubectl util 实现
+
+### Kubectl Config Flags
+
+Kubectl 的配置文件
+
+```go
+var defaultCacheDir = filepath.Join(homedir.HomeDir(), ".kube", "http-cache")
+
+// ConfigFlags 包含获取 REST 客户端配置所需的一组值
+type ConfigFlags struct {
+	CacheDir   *string
+	KubeConfig *string
+
+	// config flags
+	ClusterName      *string
+	AuthInfoName     *string
+	Context          *string
+	Namespace        *string
+	APIServer        *string
+	Insecure         *bool
+	CertFile         *string
+	KeyFile          *string
+	CAFile           *string
+	BearerToken      *string
+	Impersonate      *string
+	ImpersonateGroup *[]string
+	Username         *string
+	Password         *string
+	Timeout          *string
+
+	clientConfig clientcmd.ClientConfig
+	lock         sync.Mutex
+	// If set to true, will use persistent client config and
+	// propagate the config to the places that need it, rather than
+	// loading the config multiple times
+	usePersistentConfig bool
+}
+
+// NewConfigFlags 创建配置文件选项，并给予默认值
+func NewConfigFlags(usePersistentConfig bool) *ConfigFlags {
+	impersonateGroup := []string{}
+	insecure := false
+
+	return &ConfigFlags{
+		Insecure:   &insecure,
+		Timeout:    stringptr("0"),
+		KubeConfig: stringptr(""),
+
+		CacheDir:         stringptr(defaultCacheDir),
+		ClusterName:      stringptr(""),
+		AuthInfoName:     stringptr(""),
+		Context:          stringptr(""),
+		Namespace:        stringptr(""),
+		APIServer:        stringptr(""),
+		CertFile:         stringptr(""),
+		KeyFile:          stringptr(""),
+		CAFile:           stringptr(""),
+		BearerToken:      stringptr(""),
+		Impersonate:      stringptr(""),
+		ImpersonateGroup: &impersonateGroup,
+
+		usePersistentConfig: usePersistentConfig,
+	}
+}
+
+// WithDeprecatedPasswordFlag 启用用户名和密码配置 Flags（这是两个已经弃用的 Flags）
+func (f *ConfigFlags) WithDeprecatedPasswordFlag() *ConfigFlags {
+	f.Username = stringptr("")
+	f.Password = stringptr("")
+	return f
+}
+
+// AddFlags 将配置文件的相关内容绑定到命令行选项上
+func (f *ConfigFlags) AddFlags(flags *pflag.FlagSet) {
+	// --kubeconfig 指定配置文件路径
+	if f.KubeConfig != nil {
+		flags.StringVar(f.KubeConfig, "kubeconfig", *f.KubeConfig, "Path to the kubeconfig file to use for CLI requests.")
+	}
+	if f.CacheDir != nil {
+		flags.StringVar(f.CacheDir, flagHTTPCacheDir, *f.CacheDir, "Default HTTP cache directory")
+	}
+
+	// add config options
+	if f.CertFile != nil {
+		flags.StringVar(f.CertFile, flagCertFile, *f.CertFile, "Path to a client certificate file for TLS")
+	}
+	if f.KeyFile != nil {
+		flags.StringVar(f.KeyFile, flagKeyFile, *f.KeyFile, "Path to a client key file for TLS")
+	}
+	if f.BearerToken != nil {
+		flags.StringVar(f.BearerToken, flagBearerToken, *f.BearerToken, "Bearer token for authentication to the API server")
+	}
+	if f.Impersonate != nil {
+		flags.StringVar(f.Impersonate, flagImpersonate, *f.Impersonate, "Username to impersonate for the operation")
+	}
+	if f.ImpersonateGroup != nil {
+		flags.StringArrayVar(f.ImpersonateGroup, flagImpersonateGroup, *f.ImpersonateGroup,
+							 "Group to impersonate for the operation, this flag can be repeated to specify multiple groups.")
+	}
+	if f.Username != nil {
+		flags.StringVar(f.Username, flagUsername, *f.Username, "Username for basic authentication to the API server")
+	}
+	if f.Password != nil {
+		flags.StringVar(f.Password, flagPassword, *f.Password, "Password for basic authentication to the API server")
+	}
+	if f.ClusterName != nil {
+		flags.StringVar(f.ClusterName, flagClusterName, *f.ClusterName, "The name of the kubeconfig cluster to use")
+	}
+	if f.AuthInfoName != nil {
+		flags.StringVar(f.AuthInfoName, flagAuthInfoName, *f.AuthInfoName, "The name of the kubeconfig user to use")
+	}
+	if f.Namespace != nil {
+		flags.StringVarP(f.Namespace, flagNamespace, "n", *f.Namespace, "If present, the namespace scope for this CLI request")
+	}
+	if f.Context != nil {
+		flags.StringVar(f.Context, flagContext, *f.Context, "The name of the kubeconfig context to use")
+	}
+
+	if f.APIServer != nil {
+		flags.StringVarP(f.APIServer, flagAPIServer, "s", *f.APIServer, "The address and port of the Kubernetes API server")
+	}
+	if f.Insecure != nil {
+		flags.BoolVar(f.Insecure, flagInsecure, *f.Insecure, "If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure")
+	}
+	if f.CAFile != nil {
+		flags.StringVar(f.CAFile, flagCAFile, *f.CAFile, "Path to a cert file for the certificate authority")
+	}
+	if f.Timeout != nil {
+		flags.StringVar(f.Timeout, flagTimeout, *f.Timeout, "The length of time to wait before giving up on a single server request. Non-zero values should contain a corresponding time unit (e.g. 1s, 2m, 3h). A value of zero means don't timeout requests.")
+	}
+
+}
+
+// ToRawKubeConfigLoader 返回 clientcmd.clientConfig
+// clientcmd.clientConfig 是 client-go 中的内容
+func (f *ConfigFlags) ToRawKubeConfigLoader() clientcmd.ClientConfig {
+	if f.usePersistentConfig {
+		return f.toRawKubePersistentConfigLoader()
+	}
+	return f.toRawKubeConfigLoader()
+}
+
+// ToRESTMapper 返回一个 RESTMapper，这是一个用于将输入内容转换为 REST 资源的方法
+func (f *ConfigFlags) ToRESTMapper() (meta.RESTMapper, error) {
+	// 使用 kubectl config 得到一个 Discovery Client
+	discoveryClient, err := f.ToDiscoveryClient()
+	if err != nil {
+		return nil, err
+	}
+
+	// restmapper 是 client-go 的内容
+	mapper := restmapper.NewDeferredDiscoveryRESTMapper(discoveryClient)
+	expander := restmapper.NewShortcutExpander(mapper, discoveryClient)
+	return expander, nil
+}
+```
+
+### Kubectl Factory 实现
+
+```go
+func NewFactory(clientGetter genericclioptions.RESTClientGetter) Factory {
+	if clientGetter == nil {
+		panic("attempt to instantiate client_access_factory with nil clientGetter")
+	}
+
+	f := &factoryImpl{
+		clientGetter: clientGetter,
+	}
+
+	return f
+}
+
+// <staging/src/k8s.io/cli-runtime/pkg/genericclioptions/config_flags.go>
+// RESTClientGetter 是 ConfigFlags 的接口，用于提供更简单的方法来模拟命令并消除与结构类型的直接耦合。 
+type RESTClientGetter interface {
+	// ToRESTConfig returns restconfig
+	ToRESTConfig() (*rest.Config, error)
+
+	// ToDiscoveryClient returns discovery client
+	ToDiscoveryClient() (discovery.CachedDiscoveryInterface, error)
+
+	// ToRESTMapper returns a restmapper
+	ToRESTMapper() (meta.RESTMapper, error)
+
+	// ToRawKubeConfigLoader return kubeconfig loader as-is
+	ToRawKubeConfigLoader() clientcmd.ClientConfig
+}
+```
+
+Kubectl Factory 实现的接口：
+
+```go
+func (f *factoryImpl) ToRawKubeConfigLoader() clientcmd.ClientConfig {
+	return f.clientGetter.ToRawKubeConfigLoader()
 }
 ```
 
